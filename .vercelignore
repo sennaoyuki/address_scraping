@@ -1,0 +1,9 @@
+clinic_images/
+downloads/
+*.pyc
+__pycache__/
+.git/
+.gitignore
+README.md
+DEPLOYMENT.md
+clinic_image_*.md
