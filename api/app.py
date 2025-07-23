@@ -1,51 +1,55 @@
-from flask import Flask, render_template, request, jsonify, send_file
-from flask_cors import CORS
+from flask import Flask, render_template, jsonify
 import os
-import sys
-import time
-import json
 
-# 親ディレクトリをパスに追加
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from scraper_module import ClinicImageScraper
-
-app = Flask(__name__, 
-    template_folder='../templates',
-    static_folder='../static'
-)
-CORS(app)
-
-# メモリ内でセッション管理（Vercel用）
-sessions = {}
+app = Flask(__name__)
 
 @app.route('/')
 def index():
     """メインページ"""
-    return render_template('index.html')
+    return """
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>クリニック画像スクレイパー</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body>
+        <div class="container mt-5">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h1 class="card-title">🏥 クリニック画像スクレイパー</h1>
+                            <div class="alert alert-info mt-4">
+                                <h5>Vercel環境での制限</h5>
+                                <p>完全な機能を利用するには、ローカル環境で実行してください：</p>
+                                <code>git clone https://github.com/sennaoyuki/ClinicStore_Scraping.git</code><br>
+                                <code>cd ClinicStore_Scraping</code><br>
+                                <code>pip install -r requirements.txt</code><br>
+                                <code>python app.py</code>
+                            </div>
+                            <div class="alert alert-success">
+                                <h6>対応サイト</h6>
+                                <p class="mb-0">DIOクリニック、エミナルクリニック、DR.スキンクリニック、フレイアクリニック、リエートクリニック、リゼクリニック、ビューティースキンクリニック、メンズライフクリニックなど</p>
+                            </div>
+                            <a href="https://github.com/sennaoyuki/ClinicStore_Scraping" class="btn btn-primary">
+                                GitHubで詳細を見る
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
 
-@app.route('/api/scrape', methods=['POST'])
-def start_scrape():
-    """スクレイピングを開始（簡易版）"""
-    data = request.json
-    url = data.get('url')
-    
-    if not url:
-        return jsonify({'success': False, 'error': 'URLが指定されていません'}), 400
-    
-    # Vercelの制限のため、簡易的な応答を返す
-    return jsonify({
-        'success': True,
-        'message': 'Vercel環境では完全な機能は利用できません。ローカル環境での実行を推奨します。',
-        'demo': True
-    })
-
-@app.route('/api/health', methods=['GET'])
-def health_check():
+@app.route('/api/health')
+def health():
     """ヘルスチェック"""
-    return jsonify({'status': 'ok', 'timestamp': time.time()})
+    return jsonify({'status': 'ok'})
 
 # Vercel用のハンドラー
-def handler(request, context):
-    """Vercel serverless function handler"""
-    return app(request, context)
+app = app
