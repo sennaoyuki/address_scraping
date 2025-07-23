@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クリニック画像スクレイパー</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-hospital"></i> クリニック画像スクレイパー
+            </span>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <h2 class="card-title text-center mb-4">
+                            <i class="bi bi-camera"></i> クリニック画像を自動収集
+                        </h2>
+                        
+                        <div class="alert alert-info" role="alert">
+                            <h5 class="alert-heading"><i class="bi bi-info-circle"></i> 対応サイト</h5>
+                            <p class="mb-0">
+                                DIOクリニック、エミナルクリニック、DR.スキンクリニック、フレイアクリニック、
+                                リエートクリニック、リゼクリニック、ビューティースキンクリニック、メンズライフクリニック
+                                など多数のクリニックサイトに対応しています。
+                            </p>
+                        </div>
+
+                        <form id="scrapeForm">
+                            <div class="mb-3">
+                                <label for="urlInput" class="form-label">
+                                    <i class="bi bi-link-45deg"></i> クリニックページのURL
+                                </label>
+                                <input type="url" class="form-control" id="urlInput" 
+                                       placeholder="https://example-clinic.com/clinic/" required>
+                                <div class="form-text">
+                                    例: https://dioclinic.jp/clinic/
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary btn-lg w-100" id="submitBtn">
+                                <i class="bi bi-cloud-download"></i> スクレイピング開始
+                            </button>
+                        </form>
+
+                        <!-- 進捗表示エリア -->
+                        <div id="progressArea" class="mt-4" style="display: none;">
+                            <h5><i class="bi bi-hourglass-split"></i> 処理状況</h5>
+                            <div class="progress mb-3" style="height: 25px;">
+                                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%">
+                                    <span id="progressText">0%</span>
+                                </div>
+                            </div>
+                            <p id="statusText" class="text-muted">
+                                <i class="bi bi-gear-fill spinner"></i> <span id="statusMessage">準備中...</span>
+                            </p>
+                            <p id="actionText" class="small text-muted"></p>
+                        </div>
+
+                        <!-- 結果表示エリア -->
+                        <div id="resultArea" class="mt-4" style="display: none;">
+                            <div class="alert alert-success" role="alert">
+                                <h5 class="alert-heading"><i class="bi bi-check-circle"></i> 完了しました！</h5>
+                                <p id="resultMessage"></p>
+                                <hr>
+                                <a id="downloadBtn" class="btn btn-success" href="#" download>
+                                    <i class="bi bi-download"></i> ZIPファイルをダウンロード
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- エラー表示エリア -->
+                        <div id="errorArea" class="mt-4" style="display: none;">
+                            <div class="alert alert-danger" role="alert">
+                                <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> エラー</h5>
+                                <p id="errorMessage"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 使い方 -->
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-question-circle"></i> 使い方</h5>
+                        <ol>
+                            <li>クリニックの一覧ページまたは店舗ページのURLを入力</li>
+                            <li>「スクレイピング開始」ボタンをクリック</li>
+                            <li>自動的に店舗画像を検出・ダウンロード</li>
+                            <li>完了後、ZIPファイルでまとめてダウンロード</li>
+                        </ol>
+                        <p class="text-muted small mb-0">
+                            ※ メインページに画像がない場合は、自動的に各店舗の詳細ページを探索します
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-5 py-3 bg-light">
+        <div class="container text-center text-muted">
+            <small>クリニック画像スクレイパー &copy; 2024</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
