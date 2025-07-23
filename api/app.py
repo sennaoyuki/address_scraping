@@ -97,11 +97,19 @@ def index():
                     if (data.success) {
                         document.getElementById('resultContent').innerHTML = 
                             `<p><strong>${data.count}枚</strong>の画像URLを発見しました：</p>
+                             <div class="mb-3">
+                                 <button class="btn btn-success btn-sm" onclick="downloadAllImages(${JSON.stringify(data.urls)})">
+                                     <i class="bi bi-download"></i> 全画像を一括ダウンロード
+                                 </button>
+                             </div>
                              <div style="max-height: 300px; overflow-y: auto;">
                                  ${data.urls.map((url, i) => 
-                                    `<div class="mb-2">
-                                        <small class="text-muted">${i+1}.</small>
-                                        <a href="${url}" target="_blank" class="text-break">${url}</a>
+                                    `<div class="mb-2 d-flex align-items-center">
+                                        <small class="text-muted me-2">${i+1}.</small>
+                                        <a href="${url}" target="_blank" class="text-break flex-grow-1">${url}</a>
+                                        <button class="btn btn-outline-primary btn-sm ms-2" onclick="downloadImage('${url}', '${i+1}')">
+                                            <i class="bi bi-download"></i>
+                                        </button>
                                      </div>`
                                  ).join('')}
                              </div>`;
@@ -118,6 +126,57 @@ def index():
                     submitBtn.innerHTML = '<i class="bi bi-search"></i> 画像URLを検索';
                 }
             });
+
+            // 個別画像ダウンロード
+            window.downloadImage = async function(imageUrl, index) {
+                try {
+                    const response = await fetch(imageUrl);
+                    const blob = await response.blob();
+                    
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    // ファイル名を生成
+                    const urlObj = new URL(imageUrl);
+                    const extension = urlObj.pathname.split('.').pop() || 'jpg';
+                    a.download = `clinic_image_${index.padStart(3, '0')}.${extension}`;
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                } catch (error) {
+                    alert('ダウンロードに失敗しました: ' + error.message);
+                }
+            };
+
+            // 全画像一括ダウンロード
+            window.downloadAllImages = async function(urls) {
+                if (!urls || urls.length === 0) return;
+                
+                const button = event.target;
+                const originalText = button.innerHTML;
+                let downloaded = 0;
+                
+                for (let i = 0; i < urls.length; i++) {
+                    button.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>ダウンロード中... (${downloaded + 1}/${urls.length})`;
+                    
+                    try {
+                        await downloadImage(urls[i], (i + 1).toString());
+                        downloaded++;
+                        // 1秒間隔でダウンロード
+                        if (i < urls.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                    } catch (error) {
+                        console.error('ダウンロードエラー:', error);
+                    }
+                }
+                
+                button.innerHTML = originalText;
+                alert(`${downloaded}枚の画像をダウンロードしました！`);
+            };
         </script>
     </body>
     </html>
