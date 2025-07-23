@@ -297,8 +297,12 @@ class ClinicImageScraper:
             self.current_action = "ダウンロードファイルを圧縮中..."
             
             zip_filename = f"{domain}_images_{timestamp}.zip"
-            zip_path = os.path.join("downloads", zip_filename)
-            os.makedirs("downloads", exist_ok=True)
+            # Vercel環境では/tmpディレクトリを使用
+            if os.environ.get('VERCEL'):
+                zip_path = os.path.join("/tmp", zip_filename)
+            else:
+                zip_path = os.path.join("downloads", zip_filename)
+                os.makedirs("downloads", exist_ok=True)
             
             with zipfile.ZipFile(zip_path, 'w') as zipf:
                 for img_path in self.downloaded_images:
