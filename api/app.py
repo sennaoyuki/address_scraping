@@ -130,22 +130,30 @@ def index():
             // 個別画像ダウンロード
             window.downloadImage = async function(imageUrl, index) {
                 try {
-                    const response = await fetch(imageUrl);
-                    const blob = await response.blob();
+                    // サーバー経由で画像を取得
+                    const response = await fetch('/api/proxy-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: imageUrl })
+                    });
                     
-                    const url = window.URL.createObjectURL(blob);
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        throw new Error(data.error);
+                    }
+                    
+                    // Base64データをダウンロード
                     const a = document.createElement('a');
-                    a.href = url;
+                    a.href = data.data;
                     
                     // ファイル名を生成
-                    const urlObj = new URL(imageUrl);
-                    const extension = urlObj.pathname.split('.').pop() || 'jpg';
+                    const extension = imageUrl.split('.').pop() || 'jpg';
                     a.download = `clinic_image_${index.padStart(3, '0')}.${extension}`;
                     
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
                 } catch (error) {
                     alert('ダウンロードに失敗しました: ' + error.message);
                 }
@@ -308,5 +316,39 @@ def scrape():
 def health():
     """ヘルスチェック"""
     return jsonify({'status': 'ok'})
+
+@app.route('/api/proxy-image', methods=['POST'])
+def proxy_image():
+    """画像をプロキシしてダウンロード"""
+    try:
+        data = request.json
+        image_url = data.get('url')
+        
+        if not image_url:
+            return jsonify({'success': False, 'error': 'URLが指定されていません'}), 400
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        # 画像を取得
+        response = requests.get(image_url, headers=headers, timeout=8)
+        response.raise_for_status()
+        
+        # Base64エンコード
+        import base64
+        image_base64 = base64.b64encode(response.content).decode('utf-8')
+        
+        # Content-Typeを判定
+        content_type = response.headers.get('Content-Type', 'image/jpeg')
+        
+        return jsonify({
+            'success': True,
+            'data': f'data:{content_type};base64,{image_base64}',
+            'filename': image_url.split('/')[-1]
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 app = app
