@@ -98,7 +98,7 @@ def index():
                         document.getElementById('resultContent').innerHTML = 
                             `<p><strong>${data.count}枚</strong>の画像URLを発見しました：</p>
                              <div class="mb-3">
-                                 <button class="btn btn-success btn-sm" onclick="downloadAllImages(${JSON.stringify(data.urls)})">
+                                 <button class="btn btn-success btn-sm" id="downloadAllBtn">
                                      <i class="bi bi-download"></i> 全画像を一括ダウンロード
                                  </button>
                              </div>
@@ -114,6 +114,11 @@ def index():
                                  ).join('')}
                              </div>`;
                         resultArea.style.display = 'block';
+                        
+                        // 一括ダウンロードボタンにイベントリスナーを追加
+                        document.getElementById('downloadAllBtn').addEventListener('click', function() {
+                            downloadAllImages(data.urls);
+                        });
                     } else {
                         document.getElementById('errorContent').textContent = data.error;
                         errorArea.style.display = 'block';
@@ -163,8 +168,9 @@ def index():
             window.downloadAllImages = async function(urls) {
                 if (!urls || urls.length === 0) return;
                 
-                const button = event.target;
+                const button = document.getElementById('downloadAllBtn');
                 const originalText = button.innerHTML;
+                button.disabled = true;
                 let downloaded = 0;
                 
                 for (let i = 0; i < urls.length; i++) {
@@ -182,6 +188,7 @@ def index():
                     }
                 }
                 
+                button.disabled = false;
                 button.innerHTML = originalText;
                 alert(`${downloaded}枚の画像をダウンロードしました！`);
             };
