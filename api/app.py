@@ -21,6 +21,7 @@ def index():
         <title>クリニック画像スクレイパー</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     </head>
     <body>
         <div class="container mt-5">
@@ -99,7 +100,10 @@ def index():
                             `<p><strong>${data.count}枚</strong>の画像URLを発見しました：</p>
                              <div class="mb-3">
                                  <button class="btn btn-success btn-sm" id="downloadAllBtn">
-                                     <i class="bi bi-download"></i> 全画像を一括ダウンロード
+                                     <i class="bi bi-download"></i> 全画像を一括ダウンロード（個別）
+                                 </button>
+                                 <button class="btn btn-primary btn-sm ms-2" id="downloadZipBtn">
+                                     <i class="bi bi-file-earmark-zip"></i> ZIPでダウンロード
                                  </button>
                              </div>
                              <div style="max-height: 300px; overflow-y: auto;">
@@ -118,6 +122,11 @@ def index():
                         // 一括ダウンロードボタンにイベントリスナーを追加
                         document.getElementById('downloadAllBtn').addEventListener('click', function() {
                             downloadAllImages(data.urls);
+                        });
+                        
+                        // ZIPダウンロードボタンにイベントリスナーを追加
+                        document.getElementById('downloadZipBtn').addEventListener('click', function() {
+                            downloadAsZip(data.urls, url);
                         });
                     } else {
                         document.getElementById('errorContent').textContent = data.error;
@@ -191,6 +200,75 @@ def index():
                 button.disabled = false;
                 button.innerHTML = originalText;
                 alert(`${downloaded}枚の画像をダウンロードしました！`);
+            };
+
+            // ZIP形式でダウンロード
+            window.downloadAsZip = async function(urls, siteUrl) {
+                if (!urls || urls.length === 0) return;
+                
+                const button = document.getElementById('downloadZipBtn');
+                const originalText = button.innerHTML;
+                button.disabled = true;
+                
+                const zip = new JSZip();
+                let downloaded = 0;
+                
+                for (let i = 0; i < urls.length; i++) {
+                    button.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>ZIP作成中... (${downloaded + 1}/${urls.length})`;
+                    
+                    try {
+                        // サーバー経由で画像を取得
+                        const response = await fetch('/api/proxy-image', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: urls[i] })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            // Base64データから画像データを抽出
+                            const base64Data = data.data.split(',')[1];
+                            const extension = urls[i].split('.').pop() || 'jpg';
+                            const filename = `clinic_image_${(i + 1).toString().padStart(3, '0')}.${extension}`;
+                            
+                            // ZIPに追加
+                            zip.file(filename, base64Data, {base64: true});
+                            downloaded++;
+                        }
+                    } catch (error) {
+                        console.error('画像取得エラー:', error);
+                    }
+                }
+                
+                // ZIPファイルを生成
+                button.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>ZIPファイル生成中...`;
+                
+                try {
+                    const content = await zip.generateAsync({type: 'blob'});
+                    
+                    // ダウンロード
+                    const a = document.createElement('a');
+                    const url = window.URL.createObjectURL(content);
+                    a.href = url;
+                    
+                    // ファイル名を生成（ドメイン名を使用）
+                    const domain = new URL(siteUrl).hostname.replace('www.', '');
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                    a.download = `${domain}_images_${timestamp}.zip`;
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    alert(`${downloaded}枚の画像をZIPファイルとしてダウンロードしました！`);
+                } catch (error) {
+                    alert('ZIPファイルの生成に失敗しました: ' + error.message);
+                }
+                
+                button.disabled = false;
+                button.innerHTML = originalText;
             };
         </script>
     </body>
