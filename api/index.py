@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 
+# 2025-01-23 更新: Vercel対応修正
 # 親ディレクトリをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
