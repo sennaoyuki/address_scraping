@@ -146,29 +146,88 @@ def scrape():
         image_urls = []
         domain = urlparse(url).netloc
         
-        # DIOクリニックパターン
-        clinic_divs = soup.find_all('div', class_='p-clinic__item--img')
-        for div in clinic_divs:
-            img = div.find('img')
-            if img and img.get('src'):
-                absolute_url = urljoin(url, img['src'])
-                if '/wp-content/uploads/' in absolute_url:
+        # リゼクリニック専用パターン
+        if 'rizeclinic' in domain:
+            for img in soup.find_all('img'):
+                src = img.get('src', '')
+                if '/assets/img/locations/' in src and 'img_gallery01.jpg' in src:
+                    absolute_url = urljoin(url, src)
                     image_urls.append(absolute_url)
+            
+            # 追加パターン: 店舗画像
+            for img in soup.find_all('img'):
+                src = img.get('src', '')
+                if '/assets/img/locations/' in src and any(x in src for x in ['gallery', 'clinic', 'store']):
+                    absolute_url = urljoin(url, src)
+                    image_urls.append(absolute_url)
+        
+        # DR.スキンクリニック専用パターン
+        elif 'drskinclinic' in domain:
+            for img in soup.select('img[alt$="院"]'):
+                if img.get('src'):
+                    absolute_url = urljoin(url, img['src'])
+                    image_urls.append(absolute_url)
+        
+        # フレイアクリニック専用パターン
+        elif 'frey-a' in domain:
+            for img in soup.find_all('img'):
+                alt_text = img.get('alt', '')
+                if 'フレイアクリニック' in alt_text and '院の院内風景' in alt_text:
+                    if img.get('src'):
+                        absolute_url = urljoin(url, img['src'])
+                        image_urls.append(absolute_url)
+            
+            for img in soup.find_all('img'):
+                src = img.get('src', '')
+                if '400x265' in src and 'media.frey-a.jp' in src:
+                    absolute_url = urljoin(url, src)
+                    image_urls.append(absolute_url)
+        
+        # リエートクリニック専用パターン
+        elif 'lietoclinic' in domain:
+            for i in range(1, 10):  # より多くのスライダーをチェック
+                main_slider = soup.find(class_=f'js-clinic-mainslick_0{i}')
+                if main_slider:
+                    first_img = main_slider.find('img')
+                    if first_img and first_img.get('src'):
+                        absolute_url = urljoin(url, first_img['src'])
+                        image_urls.append(absolute_url)
+        
+        # ビューティースキンクリニック専用パターン
+        elif 'beautyskinclinic' in domain:
+            for img in soup.find_all('img'):
+                alt_text = img.get('alt', '')
+                src = img.get('src', '')
+                if 'ビューティースキンクリニック' in alt_text and '院' in alt_text and src.endswith('.webp'):
+                    absolute_url = urljoin(url, src)
+                    image_urls.append(absolute_url)
+        
+        # DIOクリニックパターン
+        elif 'dioclinic' in domain:
+            clinic_divs = soup.find_all('div', class_='p-clinic__item--img')
+            for div in clinic_divs:
+                img = div.find('img')
+                if img and img.get('src'):
+                    absolute_url = urljoin(url, img['src'])
+                    if '/wp-content/uploads/' in absolute_url:
+                        image_urls.append(absolute_url)
         
         # エミナルクリニックパターン
-        clinic_imgs = soup.find_all('img', class_='p-clinic__clinic-card-img')
-        for img in clinic_imgs:
-            if img.get('src'):
-                absolute_url = urljoin(url, img['src'])
-                image_urls.append(absolute_url)
-        
-        # 一般的なパターン
-        for img in soup.find_all('img'):
-            src = img.get('src', '')
-            if any(keyword in src.lower() for keyword in ['clinic', 'store', 'shop', 'facility']):
-                absolute_url = urljoin(url, src)
-                if not any(exclude in absolute_url for exclude in ['logo', 'icon', 'banner']):
+        elif 'eminal-clinic' in domain:
+            clinic_imgs = soup.find_all('img', class_='p-clinic__clinic-card-img')
+            for img in clinic_imgs:
+                if img.get('src'):
+                    absolute_url = urljoin(url, img['src'])
                     image_urls.append(absolute_url)
+        
+        # 一般的なパターン（上記に該当しない場合）
+        else:
+            for img in soup.find_all('img'):
+                src = img.get('src', '')
+                if any(keyword in src.lower() for keyword in ['clinic', 'store', 'shop', 'facility']):
+                    absolute_url = urljoin(url, src)
+                    if not any(exclude in absolute_url for exclude in ['logo', 'icon', 'banner']):
+                        image_urls.append(absolute_url)
         
         # 重複削除
         image_urls = list(set(image_urls))
