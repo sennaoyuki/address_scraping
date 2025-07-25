@@ -158,6 +158,70 @@ class ClinicInfoScraper:
                     # 最初に見つかった駅を使用
                     clinic_info['access'] = f"{matches[0]}最寄り"
         
+        # SBC湘南美容クリニック
+        elif 's-b-c.net' in domain:
+            # 店舗名 - h1タグから取得
+            h1_elem = soup.find('h1')
+            if h1_elem:
+                clinic_info['name'] = h1_elem.get_text(strip=True)
+            
+            # タイトルからも店舗名を取得試行
+            if not clinic_info['name']:
+                title_elem = soup.find('title')
+                if title_elem:
+                    title_text = title_elem.get_text(strip=True)
+                    if '院' in title_text or 'クリニック' in title_text:
+                        clinic_info['name'] = title_text
+            
+            # 住所の抽出
+            text_content = soup.get_text()
+            address_patterns = [
+                r'〒\d{3}-\d{4}\s*[^\n]*?(?:市|区|町|村)[^\n]*?(?:丁目|番地|[0-9]+F?)',
+                r'〒\d{3}-\d{4}[^\n]*',
+                r'(?:東京都|大阪府|京都府|北海道|.*?県)[^\n]*?(?:市|区|町|村)[^\n]*?[0-9]',
+            ]
+            
+            for pattern in address_patterns:
+                match = re.search(pattern, text_content)
+                if match:
+                    address = match.group(0).strip()
+                    address = re.sub(r'\s+', ' ', address)
+                    clinic_info['address'] = address
+                    break
+            
+            # アクセス情報の抽出
+            access_patterns = [
+                r'([^\s]+駅)[^\n]*?(?:から|より)[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+                r'([^\s]+駅)[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+                r'アクセス[^\n]*?([^\s]+駅)[^\n]*?(\d+)分',
+            ]
+            
+            found_station = None
+            min_minutes = 999
+            
+            for pattern in access_patterns:
+                matches = re.findall(pattern, text_content)
+                for match in matches:
+                    if len(match) == 2:
+                        station = match[0]
+                        try:
+                            minutes = int(match[1])
+                            if minutes < min_minutes:
+                                min_minutes = minutes
+                                found_station = f"{station}から徒歩約{minutes}分"
+                        except ValueError:
+                            continue
+            
+            if found_station:
+                clinic_info['access'] = found_station
+            
+            # アクセス情報が見つからない場合、駅名だけでも検索
+            if not clinic_info['access']:
+                simple_station_pattern = r'([^\s]+駅)'
+                matches = re.findall(simple_station_pattern, text_content)
+                if matches:
+                    clinic_info['access'] = f"{matches[0]}最寄り"
+        
         # リゼクリニック
         elif 'rizeclinic' in domain:
             # 店舗名 - h1タグから取得
@@ -269,6 +333,8 @@ class ClinicInfoScraper:
             r'/shop/[^/]+/?$',
             r'/access/[^/]+/?$',
             r'/locations/[^/]+/?$',  # リゼクリニック用
+            r'/clinic/branch/[^/]+/?$',  # SBC湘南美容クリニック用
+            r'/hifuka/[^/]+/?$',  # SBC湘南美容クリニック用
         ]
         
         # すべてのリンクを確認
