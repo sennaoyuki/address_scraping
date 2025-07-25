@@ -292,6 +292,57 @@ def extract_clinic_info(soup, url, clinic_name=""):
                 elif 'アクセス' in header:
                     clinic_info['access'] = td.get_text(strip=True)
     
+    # リゼクリニック
+    elif 'rizeclinic' in domain:
+        # 店舗名 - h1タグから取得
+        h1_elem = soup.find('h1')
+        if h1_elem:
+            clinic_info['name'] = h1_elem.get_text(strip=True)
+        
+        # テーブルから住所を取得
+        info_table = soup.find('table')
+        if info_table:
+            for tr in info_table.find_all('tr'):
+                th = tr.find('th')
+                td = tr.find('td')
+                if th and td:
+                    header = th.get_text(strip=True)
+                    if '住所' in header:
+                        clinic_info['address'] = td.get_text(strip=True)
+        
+        # アクセス情報は正規表現で抽出
+        text_content = soup.get_text()
+        # 複数の駅情報パターンを探す
+        station_patterns = [
+            r'([^\s]+線)?[^\s]*?「([^\s]+駅)」[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+            r'([^\s]+線)?[^\s]*?「([^\s]+停留場)」[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+            r'([^\s]+線)?[^\s]*?([^\s]+駅)[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+        ]
+        
+        access_items = []
+        for pattern in station_patterns:
+            matches = re.findall(pattern, text_content)
+            for match in matches:
+                if len(match) == 3:
+                    line = match[0] if match[0] else ''
+                    station = match[1]
+                    minutes = match[2]
+                    if line:
+                        access_items.append(f"{line}{station} 徒歩{minutes}分")
+                    else:
+                        access_items.append(f"{station} 徒歩{minutes}分")
+        
+        # 重複を削除
+        seen = set()
+        unique_access = []
+        for item in access_items:
+            if item not in seen:
+                seen.add(item)
+                unique_access.append(item)
+        
+        if unique_access:
+            clinic_info['access'] = '、'.join(unique_access[:4])  # 最大4つまで
+    
     # 汎用的な抽出（上記以外のサイト）
     else:
         # 店舗名の抽出（h1, h2タグ）
