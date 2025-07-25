@@ -1,10 +1,12 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, Response
 import requests
 from bs4 import BeautifulSoup
 import os
 import time
 from urllib.parse import urljoin, urlparse
-import base64
+import re
+import csv
+from datetime import datetime
 import io
 
 app = Flask(__name__)
@@ -18,22 +20,42 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>クリニック画像スクレイパー</title>
+        <title>クリニック店舗情報スクレイパー</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     </head>
     <body>
+        <nav class="navbar navbar-dark bg-primary">
+            <div class="container">
+                <span class="navbar-brand mb-0 h1">
+                    <i class="bi bi-hospital"></i> クリニック店舗情報スクレイパー
+                </span>
+            </div>
+        </nav>
+
         <div class="container mt-5">
             <div class="row justify-content-center">
                 <div class="col-lg-8">
-                    <div class="card">
+                    <div class="card shadow">
                         <div class="card-body">
-                            <h1 class="card-title text-center">🏥 クリニック画像スクレイパー</h1>
+                            <h2 class="card-title text-center mb-4">
+                                <i class="bi bi-building"></i> クリニック店舗情報を自動収集
+                            </h2>
                             
-                            <div class="alert alert-success mt-4">
-                                <h6><i class="bi bi-check-circle"></i> Vercel対応版</h6>
-                                <p class="mb-0">画像URLのリストを取得できます（実行時間制限: 10秒）</p>
+                            <div class="alert alert-info" role="alert">
+                                <h5 class="alert-heading"><i class="bi bi-info-circle"></i> 店舗情報収集ツール</h5>
+                                <p class="mb-0">
+                                    クリニックの店舗名、住所、アクセス情報（駅からの分数）を自動収集し、<br>
+                                    CSV形式でダウンロードできます。
+                                </p>
+                            </div>
+                            
+                            <div class="alert alert-success" role="alert">
+                                <h5 class="alert-heading"><i class="bi bi-check-circle"></i> 対応サイト</h5>
+                                <p class="mb-0">
+                                    DIOクリニック、エミナルクリニック、フレイアクリニック、リゼクリニック、<br>
+                                    その他多数のクリニックサイトに対応しています。
+                                </p>
                             </div>
 
                             <form id="scrapeForm">
@@ -43,26 +65,65 @@ def index():
                                     </label>
                                     <input type="url" class="form-control" id="urlInput" 
                                            placeholder="https://dioclinic.jp/clinic/" required>
+                                    <div class="form-text">
+                                        例: https://dioclinic.jp/clinic/
+                                    </div>
                                 </div>
                                 
-                                <button type="submit" class="btn btn-primary w-100" id="submitBtn">
-                                    <i class="bi bi-search"></i> 画像URLを検索
+                                <button type="submit" class="btn btn-primary btn-lg w-100" id="submitBtn">
+                                    <i class="bi bi-cloud-download"></i> スクレイピング開始
                                 </button>
                             </form>
 
+                            <!-- 進捗表示エリア -->
+                            <div id="progressArea" class="mt-4" style="display: none;">
+                                <h5><i class="bi bi-hourglass-split"></i> 処理状況</h5>
+                                <div class="progress mb-3" style="height: 25px;">
+                                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                         role="progressbar" style="width: 0%">
+                                        <span id="progressText">0%</span>
+                                    </div>
+                                </div>
+                                <p id="statusText" class="text-muted">
+                                    <i class="bi bi-gear-fill spinner"></i> <span id="statusMessage">準備中...</span>
+                                </p>
+                            </div>
+
+                            <!-- 結果表示エリア -->
                             <div id="resultArea" class="mt-4" style="display: none;">
-                                <div class="alert alert-success">
-                                    <h5><i class="bi bi-check-circle"></i> 検索完了</h5>
-                                    <div id="resultContent"></div>
+                                <div class="alert alert-success" role="alert">
+                                    <h5 class="alert-heading"><i class="bi bi-check-circle"></i> 完了しました！</h5>
+                                    <p id="resultMessage"></p>
+                                    <hr>
+                                    <button id="downloadBtn" class="btn btn-success">
+                                        <i class="bi bi-file-earmark-csv"></i> CSVファイルをダウンロード
+                                    </button>
                                 </div>
                             </div>
 
+                            <!-- エラー表示エリア -->
                             <div id="errorArea" class="mt-4" style="display: none;">
-                                <div class="alert alert-danger">
-                                    <h5><i class="bi bi-exclamation-triangle"></i> エラー</h5>
-                                    <div id="errorContent"></div>
+                                <div class="alert alert-danger" role="alert">
+                                    <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> エラー</h5>
+                                    <p id="errorMessage"></p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- 使い方 -->
+                    <div class="card mt-4">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="bi bi-question-circle"></i> 使い方</h5>
+                            <ol>
+                                <li>クリニックの一覧ページまたは店舗ページのURLを入力</li>
+                                <li>「スクレイピング開始」ボタンをクリック</li>
+                                <li>自動的に店舗情報（名前、住所、アクセス）を収集</li>
+                                <li>完了後、CSVファイルでダウンロード</li>
+                            </ol>
+                            <p class="text-muted small mb-0">
+                                ※ 一覧ページの場合は、自動的に各店舗の詳細ページを探索します
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -70,214 +131,240 @@ def index():
         </div>
 
         <script>
+            let currentData = null;
+
             document.getElementById('scrapeForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
                 const url = document.getElementById('urlInput').value;
                 const submitBtn = document.getElementById('submitBtn');
-                const resultArea = document.getElementById('resultArea');
-                const errorArea = document.getElementById('errorArea');
                 
-                // UIリセット
-                resultArea.style.display = 'none';
-                errorArea.style.display = 'none';
+                // UIをリセット
+                resetUI();
                 
-                // ボタン無効化
+                // ボタンを無効化
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>検索中...';
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>処理中...';
+                
+                // 進捗エリアを表示
+                document.getElementById('progressArea').style.display = 'block';
                 
                 try {
                     const response = await fetch('/api/scrape', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
                         body: JSON.stringify({ url: url })
                     });
                     
                     const data = await response.json();
                     
                     if (data.success) {
-                        document.getElementById('resultContent').innerHTML = 
-                            `<p><strong>${data.count}枚</strong>の画像URLを発見しました：</p>
-                             <div class="mb-3">
-                                 <button class="btn btn-success btn-sm" id="downloadAllBtn">
-                                     <i class="bi bi-download"></i> 全画像を一括ダウンロード（個別）
-                                 </button>
-                                 <button class="btn btn-primary btn-sm ms-2" id="downloadZipBtn">
-                                     <i class="bi bi-file-earmark-zip"></i> ZIPでダウンロード
-                                 </button>
-                             </div>
-                             <div style="max-height: 300px; overflow-y: auto;">
-                                 ${data.urls.map((url, i) => 
-                                    `<div class="mb-2 d-flex align-items-center">
-                                        <small class="text-muted me-2">${i+1}.</small>
-                                        <a href="${url}" target="_blank" class="text-break flex-grow-1">${url}</a>
-                                        <button class="btn btn-outline-primary btn-sm ms-2" onclick="downloadImage('${url}', '${i+1}')">
-                                            <i class="bi bi-download"></i>
-                                        </button>
-                                     </div>`
-                                 ).join('')}
-                             </div>`;
-                        resultArea.style.display = 'block';
-                        
-                        // 一括ダウンロードボタンにイベントリスナーを追加
-                        document.getElementById('downloadAllBtn').addEventListener('click', function() {
-                            downloadAllImages(data.urls);
-                        });
-                        
-                        // ZIPダウンロードボタンにイベントリスナーを追加
-                        document.getElementById('downloadZipBtn').addEventListener('click', function() {
-                            downloadAsZip(data.urls, url);
-                        });
+                        currentData = data;
+                        showResult(data);
                     } else {
-                        document.getElementById('errorContent').textContent = data.error;
-                        errorArea.style.display = 'block';
+                        showError(data.error || '処理を開始できませんでした。');
                     }
                 } catch (error) {
-                    document.getElementById('errorContent').textContent = 'サーバーとの通信に失敗しました。';
-                    errorArea.style.display = 'block';
+                    showError('サーバーとの通信に失敗しました。');
                 } finally {
+                    // ボタンを有効化
                     submitBtn.disabled = false;
-                    submitBtn.innerHTML = '<i class="bi bi-search"></i> 画像URLを検索';
+                    submitBtn.innerHTML = '<i class="bi bi-cloud-download"></i> スクレイピング開始';
                 }
             });
 
-            // 個別画像ダウンロード
-            window.downloadImage = async function(imageUrl, index) {
-                try {
-                    // サーバー経由で画像を取得
-                    const response = await fetch('/api/proxy-image', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: imageUrl })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (!data.success) {
-                        throw new Error(data.error);
-                    }
-                    
-                    // Base64データをダウンロード
-                    const a = document.createElement('a');
-                    a.href = data.data;
-                    
-                    // ファイル名を生成
-                    const extension = imageUrl.split('.').pop() || 'jpg';
-                    a.download = `clinic_image_${index.padStart(3, '0')}.${extension}`;
-                    
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                } catch (error) {
-                    alert('ダウンロードに失敗しました: ' + error.message);
-                }
-            };
+            function showResult(data) {
+                const resultArea = document.getElementById('resultArea');
+                const resultMessage = document.getElementById('resultMessage');
+                
+                resultMessage.textContent = `${data.clinic_count}件の店舗情報を取得しました！`;
+                
+                hideProgressArea();
+                resultArea.style.display = 'block';
+            }
 
-            // 全画像一括ダウンロード
-            window.downloadAllImages = async function(urls) {
-                if (!urls || urls.length === 0) return;
+            function showError(message) {
+                const errorArea = document.getElementById('errorArea');
+                const errorMessage = document.getElementById('errorMessage');
                 
-                const button = document.getElementById('downloadAllBtn');
-                const originalText = button.innerHTML;
-                button.disabled = true;
-                let downloaded = 0;
+                errorMessage.textContent = message;
                 
-                for (let i = 0; i < urls.length; i++) {
-                    button.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>ダウンロード中... (${downloaded + 1}/${urls.length})`;
-                    
-                    try {
-                        await downloadImage(urls[i], (i + 1).toString());
-                        downloaded++;
-                        // 1秒間隔でダウンロード
-                        if (i < urls.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                        }
-                    } catch (error) {
-                        console.error('ダウンロードエラー:', error);
-                    }
-                }
-                
-                button.disabled = false;
-                button.innerHTML = originalText;
-                alert(`${downloaded}枚の画像をダウンロードしました！`);
-            };
+                hideProgressArea();
+                errorArea.style.display = 'block';
+            }
 
-            // ZIP形式でダウンロード
-            window.downloadAsZip = async function(urls, siteUrl) {
-                if (!urls || urls.length === 0) return;
+            function hideProgressArea() {
+                document.getElementById('progressArea').style.display = 'none';
+            }
+
+            function resetUI() {
+                document.getElementById('progressArea').style.display = 'none';
+                document.getElementById('resultArea').style.display = 'none';
+                document.getElementById('errorArea').style.display = 'none';
                 
-                const button = document.getElementById('downloadZipBtn');
-                const originalText = button.innerHTML;
-                button.disabled = true;
+                // 進捗バーをリセット
+                const progressBar = document.getElementById('progressBar');
+                const progressText = document.getElementById('progressText');
+                progressBar.style.width = '100%';
+                progressText.textContent = '100%';
+            }
+
+            // CSVダウンロード
+            document.getElementById('downloadBtn').addEventListener('click', () => {
+                if (!currentData || !currentData.csv_data) return;
                 
-                const zip = new JSZip();
-                let downloaded = 0;
-                
-                for (let i = 0; i < urls.length; i++) {
-                    button.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>ZIP作成中... (${downloaded + 1}/${urls.length})`;
-                    
-                    try {
-                        // サーバー経由で画像を取得
-                        const response = await fetch('/api/proxy-image', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ url: urls[i] })
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            // Base64データから画像データを抽出
-                            const base64Data = data.data.split(',')[1];
-                            const extension = urls[i].split('.').pop() || 'jpg';
-                            const filename = `clinic_image_${(i + 1).toString().padStart(3, '0')}.${extension}`;
-                            
-                            // ZIPに追加
-                            zip.file(filename, base64Data, {base64: true});
-                            downloaded++;
-                        }
-                    } catch (error) {
-                        console.error('画像取得エラー:', error);
-                    }
-                }
-                
-                // ZIPファイルを生成
-                button.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>ZIPファイル生成中...`;
-                
-                try {
-                    const content = await zip.generateAsync({type: 'blob'});
-                    
-                    // ダウンロード
-                    const a = document.createElement('a');
-                    const url = window.URL.createObjectURL(content);
-                    a.href = url;
-                    
-                    // ファイル名を生成（ドメイン名を使用）
-                    const domain = new URL(siteUrl).hostname.replace('www.', '');
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                    a.download = `${domain}_images_${timestamp}.zip`;
-                    
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
-                    
-                    alert(`${downloaded}枚の画像をZIPファイルとしてダウンロードしました！`);
-                } catch (error) {
-                    alert('ZIPファイルの生成に失敗しました: ' + error.message);
-                }
-                
-                button.disabled = false;
-                button.innerHTML = originalText;
-            };
+                // CSVデータをダウンロード
+                const blob = new Blob([currentData.csv_data], { type: 'text/csv;charset=utf-8-sig' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = currentData.filename || 'clinic_info.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            });
         </script>
     </body>
     </html>
     """
 
+def extract_clinic_info(soup, url, clinic_name=""):
+    """ページから店舗情報を抽出"""
+    clinic_info = {
+        'name': clinic_name,
+        'address': '',
+        'access': '',
+        'url': url
+    }
+    
+    domain = urlparse(url).netloc
+    
+    # DIOクリニック
+    if 'dioclinic' in domain:
+        # 店舗名
+        name_elem = soup.find('h2', class_='clinic-name')
+        if name_elem:
+            clinic_info['name'] = name_elem.get_text(strip=True)
+        
+        # 住所
+        address_elem = soup.find('div', class_='address')
+        if address_elem:
+            clinic_info['address'] = address_elem.get_text(strip=True)
+        
+        # アクセス
+        access_elem = soup.find('div', class_='access')
+        if access_elem:
+            clinic_info['access'] = access_elem.get_text(strip=True)
+    
+    # エミナルクリニック
+    elif 'eminal-clinic' in domain:
+        # 店舗情報テーブルから抽出
+        for tr in soup.find_all('tr'):
+            th = tr.find('th')
+            td = tr.find('td')
+            if th and td:
+                header = th.get_text(strip=True)
+                if '院名' in header:
+                    clinic_info['name'] = td.get_text(strip=True)
+                elif '住所' in header:
+                    clinic_info['address'] = td.get_text(strip=True)
+                elif 'アクセス' in header:
+                    clinic_info['access'] = td.get_text(strip=True)
+    
+    # フレイアクリニック
+    elif 'frey-a' in domain:
+        # 店舗名
+        h1_elem = soup.find('h1')
+        if h1_elem:
+            clinic_info['name'] = h1_elem.get_text(strip=True)
+        
+        # テーブルから情報抽出
+        for tr in soup.find_all('tr'):
+            th = tr.find('th')
+            td = tr.find('td')
+            if th and td:
+                header = th.get_text(strip=True)
+                if '所在地' in header:
+                    clinic_info['address'] = td.get_text(strip=True)
+                elif 'アクセス' in header:
+                    clinic_info['access'] = td.get_text(strip=True)
+    
+    # 汎用的な抽出（上記以外のサイト）
+    else:
+        # 店舗名の抽出（h1, h2タグ）
+        if not clinic_info['name']:
+            for tag in ['h1', 'h2']:
+                elem = soup.find(tag)
+                if elem:
+                    text = elem.get_text(strip=True)
+                    if '院' in text or 'クリニック' in text:
+                        clinic_info['name'] = text
+                        break
+        
+        # 住所の抽出（住所っぽいパターン）
+        address_patterns = [
+            r'〒\d{3}-\d{4}.*?(?:都|道|府|県).*?(?:市|区|町|村)',
+            r'(?:東京都|大阪府|京都府|北海道|.*?県).*?(?:市|区|町|村).*?\d+',
+        ]
+        
+        text_content = soup.get_text()
+        for pattern in address_patterns:
+            match = re.search(pattern, text_content)
+            if match:
+                clinic_info['address'] = match.group(0)
+                break
+        
+        # アクセス情報の抽出（駅名と徒歩分数）
+        access_pattern = r'(?:JR|東京メトロ|都営|私鉄)?.*?(?:線)?.*?駅.*?(?:徒歩|歩いて).*?\d+分'
+        access_match = re.search(access_pattern, text_content)
+        if access_match:
+            clinic_info['access'] = access_match.group(0)
+    
+    return clinic_info
+
+def find_clinic_links(soup, base_url):
+    """店舗一覧ページから各店舗のリンクを取得"""
+    clinic_links = []
+    domain = urlparse(base_url).netloc
+    
+    # 店舗リンクのパターン
+    link_patterns = [
+        r'/clinic/[^/]+/?$',
+        r'/store/[^/]+/?$',
+        r'/shop/[^/]+/?$',
+        r'/access/[^/]+/?$',
+    ]
+    
+    # すべてのリンクを確認
+    for a in soup.find_all('a', href=True):
+        href = a['href']
+        absolute_url = urljoin(base_url, href)
+        
+        # パターンマッチング
+        for pattern in link_patterns:
+            if re.search(pattern, href):
+                clinic_links.append({
+                    'url': absolute_url,
+                    'name': a.get_text(strip=True)
+                })
+                break
+    
+    # 重複を除去
+    seen = set()
+    unique_links = []
+    for link in clinic_links:
+        if link['url'] not in seen:
+            seen.add(link['url'])
+            unique_links.append(link)
+    
+    return unique_links[:10]  # Vercelのタイムアウト対策で最大10件
+
 @app.route('/api/scrape', methods=['POST'])
 def scrape():
-    """画像URLを検索"""
+    """店舗情報をスクレイピング"""
     try:
         data = request.json
         url = data.get('url')
@@ -290,108 +377,64 @@ def scrape():
         }
         
         # ページを取得
-        response = requests.get(url, headers=headers, timeout=8)
+        response = requests.get(url, headers=headers, timeout=5)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # 画像URLを検出
-        image_urls = []
+        clinic_data = []
+        
+        # まず現在のページから情報を抽出
+        current_page_info = extract_clinic_info(soup, url)
+        
+        # 店舗情報が取得できた場合は追加
+        if current_page_info['name'] and (current_page_info['address'] or current_page_info['access']):
+            clinic_data.append(current_page_info)
+        
+        # 店舗一覧ページかチェック（複数の店舗リンクがある場合）
+        clinic_links = find_clinic_links(soup, url)
+        
+        if len(clinic_links) > 3:  # 3つ以上のリンクがある場合は一覧ページと判断
+            # Vercelのタイムアウト対策で最初の5件のみ処理
+            for link in clinic_links[:5]:
+                try:
+                    # 各店舗ページを取得
+                    clinic_response = requests.get(link['url'], headers=headers, timeout=3)
+                    clinic_response.raise_for_status()
+                    clinic_soup = BeautifulSoup(clinic_response.content, 'html.parser')
+                    
+                    # 店舗情報を抽出
+                    clinic_info = extract_clinic_info(clinic_soup, link['url'], link['name'])
+                    if clinic_info['name']:
+                        clinic_data.append(clinic_info)
+                    
+                except Exception:
+                    continue
+        
+        # CSVデータを生成
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=['店舗名', '住所', 'アクセス', 'URL'])
+        writer.writeheader()
+        
+        for clinic in clinic_data:
+            writer.writerow({
+                '店舗名': clinic['name'],
+                '住所': clinic['address'],
+                'アクセス': clinic['access'],
+                'URL': clinic['url']
+            })
+        
+        csv_data = output.getvalue()
+        
+        # ファイル名を生成
         domain = urlparse(url).netloc
-        
-        # リゼクリニック専用パターン
-        if 'rizeclinic' in domain:
-            for img in soup.find_all('img'):
-                src = img.get('src', '')
-                if '/assets/img/locations/' in src and 'img_gallery01.jpg' in src:
-                    absolute_url = urljoin(url, src)
-                    image_urls.append(absolute_url)
-            
-            # 追加パターン: 店舗画像
-            for img in soup.find_all('img'):
-                src = img.get('src', '')
-                if '/assets/img/locations/' in src and any(x in src for x in ['gallery', 'clinic', 'store']):
-                    absolute_url = urljoin(url, src)
-                    image_urls.append(absolute_url)
-        
-        # DR.スキンクリニック専用パターン
-        elif 'drskinclinic' in domain:
-            for img in soup.select('img[alt$="院"]'):
-                if img.get('src'):
-                    absolute_url = urljoin(url, img['src'])
-                    image_urls.append(absolute_url)
-        
-        # フレイアクリニック専用パターン
-        elif 'frey-a' in domain:
-            for img in soup.find_all('img'):
-                alt_text = img.get('alt', '')
-                if 'フレイアクリニック' in alt_text and '院の院内風景' in alt_text:
-                    if img.get('src'):
-                        absolute_url = urljoin(url, img['src'])
-                        image_urls.append(absolute_url)
-            
-            for img in soup.find_all('img'):
-                src = img.get('src', '')
-                if '400x265' in src and 'media.frey-a.jp' in src:
-                    absolute_url = urljoin(url, src)
-                    image_urls.append(absolute_url)
-        
-        # リエートクリニック専用パターン
-        elif 'lietoclinic' in domain:
-            for i in range(1, 10):  # より多くのスライダーをチェック
-                main_slider = soup.find(class_=f'js-clinic-mainslick_0{i}')
-                if main_slider:
-                    first_img = main_slider.find('img')
-                    if first_img and first_img.get('src'):
-                        absolute_url = urljoin(url, first_img['src'])
-                        image_urls.append(absolute_url)
-        
-        # ビューティースキンクリニック専用パターン
-        elif 'beautyskinclinic' in domain:
-            for img in soup.find_all('img'):
-                alt_text = img.get('alt', '')
-                src = img.get('src', '')
-                if 'ビューティースキンクリニック' in alt_text and '院' in alt_text and src.endswith('.webp'):
-                    absolute_url = urljoin(url, src)
-                    image_urls.append(absolute_url)
-        
-        # DIOクリニックパターン
-        elif 'dioclinic' in domain:
-            clinic_divs = soup.find_all('div', class_='p-clinic__item--img')
-            for div in clinic_divs:
-                img = div.find('img')
-                if img and img.get('src'):
-                    absolute_url = urljoin(url, img['src'])
-                    if '/wp-content/uploads/' in absolute_url:
-                        image_urls.append(absolute_url)
-        
-        # エミナルクリニックパターン
-        elif 'eminal-clinic' in domain:
-            clinic_imgs = soup.find_all('img', class_='p-clinic__clinic-card-img')
-            for img in clinic_imgs:
-                if img.get('src'):
-                    absolute_url = urljoin(url, img['src'])
-                    image_urls.append(absolute_url)
-        
-        # 一般的なパターン（上記に該当しない場合）
-        else:
-            for img in soup.find_all('img'):
-                src = img.get('src', '')
-                if any(keyword in src.lower() for keyword in ['clinic', 'store', 'shop', 'facility']):
-                    absolute_url = urljoin(url, src)
-                    if not any(exclude in absolute_url for exclude in ['logo', 'icon', 'banner']):
-                        image_urls.append(absolute_url)
-        
-        # 重複削除
-        image_urls = list(set(image_urls))
-        
-        # 画像形式のみフィルタ
-        valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp')
-        filtered_urls = [url for url in image_urls if any(url.lower().endswith(ext) for ext in valid_extensions)]
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{domain}_clinics_{timestamp}.csv"
         
         return jsonify({
             'success': True,
-            'count': len(filtered_urls),
-            'urls': filtered_urls[:20]  # 最大20個まで表示
+            'clinic_count': len(clinic_data),
+            'csv_data': csv_data,
+            'filename': filename
         })
         
     except Exception as e:
@@ -402,38 +445,5 @@ def health():
     """ヘルスチェック"""
     return jsonify({'status': 'ok'})
 
-@app.route('/api/proxy-image', methods=['POST'])
-def proxy_image():
-    """画像をプロキシしてダウンロード"""
-    try:
-        data = request.json
-        image_url = data.get('url')
-        
-        if not image_url:
-            return jsonify({'success': False, 'error': 'URLが指定されていません'}), 400
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        
-        # 画像を取得
-        response = requests.get(image_url, headers=headers, timeout=8)
-        response.raise_for_status()
-        
-        # Base64エンコード
-        import base64
-        image_base64 = base64.b64encode(response.content).decode('utf-8')
-        
-        # Content-Typeを判定
-        content_type = response.headers.get('Content-Type', 'image/jpeg')
-        
-        return jsonify({
-            'success': True,
-            'data': f'data:{content_type};base64,{image_base64}',
-            'filename': image_url.split('/')[-1]
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
+# Vercel用のエクスポート
 app = app

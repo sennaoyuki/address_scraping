@@ -121,4 +121,4 @@ if __name__ == '__main__':
     os.makedirs('templates', exist_ok=True)
     
     # アプリケーションを起動
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001, host='127.0.0.1')
