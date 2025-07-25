@@ -102,7 +102,18 @@ function showResult(result) {
     const clinicCount = result.clinic_count || 0;
     console.log('Showing result with clinic_count:', clinicCount, 'from result:', result);
     
-    resultMessage.textContent = `${clinicCount} 件の店舗情報を取得しました！`;
+    // より詳細なデバッグ情報をページに表示
+    const debugInfo = `デバッグ情報: clinic_count=${result.clinic_count}, typeof=${typeof result.clinic_count}`;
+    console.log(debugInfo);
+    
+    // 0件の場合は警告メッセージも表示
+    if (clinicCount === 0) {
+        console.error('WARNING: clinic_count is 0!', result);
+        resultMessage.innerHTML = `<strong>警告:</strong> ${clinicCount} 件の店舗情報を取得しました！<br><small class="text-muted">${debugInfo}</small>`;
+    } else {
+        resultMessage.textContent = `${clinicCount} 件の店舗情報を取得しました！`;
+    }
+    
     downloadBtn.href = result.download_url;
     downloadBtn.download = result.filename;
     
