@@ -8,8 +8,14 @@ import re
 import csv
 from datetime import datetime
 import io
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from universal_scraper import UniversalStoreScraper
 
 app = Flask(__name__)
+
+# Initialize universal scraper
+universal_scraper = UniversalStoreScraper()
 
 @app.route('/')
 def index():
@@ -20,7 +26,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>クリニック店舗情報スクレイパー</title>
+        <title>ユニバーサル店舗情報スクレイパー</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     </head>
@@ -28,7 +34,7 @@ def index():
         <nav class="navbar navbar-dark bg-primary">
             <div class="container">
                 <span class="navbar-brand mb-0 h1">
-                    <i class="bi bi-hospital"></i> クリニック店舗情報スクレイパー
+                    <i class="bi bi-shop-window"></i> ユニバーサル店舗情報スクレイパー
                 </span>
             </div>
         </nav>
@@ -39,34 +45,36 @@ def index():
                     <div class="card shadow">
                         <div class="card-body">
                             <h2 class="card-title text-center mb-4">
-                                <i class="bi bi-building"></i> クリニック店舗情報を自動収集
+                                <i class="bi bi-building"></i> 店舗情報を自動収集
                             </h2>
                             
                             <div class="alert alert-info" role="alert">
                                 <h5 class="alert-heading"><i class="bi bi-info-circle"></i> 店舗情報収集ツール</h5>
                                 <p class="mb-0">
-                                    クリニックの店舗名、住所、アクセス情報（駅からの分数）を自動収集し、<br>
+                                    店舗名、住所、アクセス情報（駅からの分数）、電話番号、営業時間を自動収集し、<br>
                                     CSV形式でダウンロードできます。
                                 </p>
                             </div>
                             
                             <div class="alert alert-success" role="alert">
-                                <h5 class="alert-heading"><i class="bi bi-check-circle"></i> 対応サイト</h5>
+                                <h5 class="alert-heading"><i class="bi bi-check-circle"></i> ユニバーサル対応</h5>
                                 <p class="mb-0">
-                                    DIOクリニック、エミナルクリニック、フレイアクリニック、リゼクリニック、<br>
-                                    その他多数のクリニックサイトに対応しています。
+                                    <strong>あらゆるウェブサイトに対応！</strong><br>
+                                    インテリジェントなパターン認識により、クリニック、店舗、オフィスなど、<br>
+                                    様々な店舗情報を自動的に抽出します。<br>
+                                    <small class="text-muted">※ 従来対応サイト（DIO、エミナル、フレイア、リゼ等）も引き続き高精度で抽出</small>
                                 </p>
                             </div>
 
                             <form id="scrapeForm">
                                 <div class="mb-3">
                                     <label for="urlInput" class="form-label">
-                                        <i class="bi bi-link-45deg"></i> クリニックページのURL
+                                        <i class="bi bi-link-45deg"></i> 店舗ページのURL
                                     </label>
                                     <input type="url" class="form-control" id="urlInput" 
                                            placeholder="https://dioclinic.jp/clinic/" required>
                                     <div class="form-text">
-                                        例: https://dioclinic.jp/clinic/
+                                        例: https://example.com/stores/ または個別店舗ページ
                                     </div>
                                 </div>
                                 
@@ -116,7 +124,7 @@ def index():
                         <div class="card-body">
                             <h5 class="card-title"><i class="bi bi-question-circle"></i> 使い方</h5>
                             <ol>
-                                <li>クリニックの一覧ページまたは店舗ページのURLを入力</li>
+                                <li>店舗一覧ページまたは個別店舗ページのURLを入力</li>
                                 <li>「スクレイピング開始」ボタンをクリック</li>
                                 <li>自動的に店舗情報（名前、住所、アクセス）を収集</li>
                                 <li>完了後、CSVファイルでダウンロード</li>
@@ -232,7 +240,28 @@ def index():
     """
 
 def extract_clinic_info(soup, url, clinic_name=""):
-    """ページから店舗情報を抽出"""
+    """ページから店舗情報を抽出 - Universal Scraperを使用"""
+    # Use the universal scraper
+    result = universal_scraper.extract_store_info(soup, url, clinic_name)
+    
+    # Transform to the expected format
+    clinic_info = {
+        'name': result.get('name', clinic_name),
+        'address': result.get('address', ''),
+        'access': result.get('access', ''),
+        'url': url
+    }
+    
+    # Add additional fields if available
+    if 'phone' in result and result['phone']:
+        clinic_info['phone'] = result['phone']
+    if 'hours' in result and result['hours']:
+        clinic_info['hours'] = result['hours']
+    
+    return clinic_info
+
+def extract_clinic_info_legacy(soup, url, clinic_name=""):
+    """Legacy extraction method (kept for reference)"""
     clinic_info = {
         'name': clinic_name,
         'address': '',
@@ -516,46 +545,117 @@ def extract_clinic_info(soup, url, clinic_name=""):
     return clinic_info
 
 def find_clinic_links(soup, base_url):
-    """店舗一覧ページから各店舗のリンクを取得"""
+    """店舗一覧ページから各店舗のリンクを取得 - 改良版"""
     clinic_links = []
     domain = urlparse(base_url).netloc
+    base_path = urlparse(base_url).path
     
-    # 店舗リンクのパターン
+    # Enhanced store link patterns
     link_patterns = [
-        r'/clinic/[^/]+/?$',
-        r'/store/[^/]+/?$',
-        r'/shop/[^/]+/?$',
+        # Common patterns
+        r'/(?:clinic|store|shop|branch|location|office|outlet)[s]?/[^/]+/?$',
+        r'/(?:tenpo|mise)/[^/]+/?$',  # Japanese patterns
         r'/access/[^/]+/?$',
+        r'/map/[^/]+/?$',
+        
+        # Specific patterns for known sites
         r'/locations/[^/]+/?$',  # リゼクリニック用
         r'/clinic/branch/[^/]+/?$',  # SBC湘南美容クリニック用
         r'/hifuka/[^/]+/?$',  # SBC湘南美容クリニック用
+        
+        # Generic patterns that might be store pages
+        r'/[^/]+[-_](?:store|shop|clinic|branch)/?$',
+        r'/(?:area|region)/[^/]+/[^/]+/?$',  # Area-based URLs
     ]
     
-    # すべてのリンクを確認
+    # Keywords that suggest a store/branch link
+    store_keywords = [
+        '店', '院', 'クリニック', '支店', '営業所', '店舗',
+        'store', 'shop', 'clinic', 'branch', 'location', 'office'
+    ]
+    
+    # Collect all links
+    all_links = []
     for a in soup.find_all('a', href=True):
         href = a['href']
+        text = a.get_text(strip=True)
         absolute_url = urljoin(base_url, href)
         
-        # パターンマッチング
+        # Skip if it's the same page or external domain
+        if absolute_url.rstrip('/') == base_url.rstrip('/'):
+            continue
+        if urlparse(absolute_url).netloc != domain:
+            continue
+        
+        # Check pattern matching
+        pattern_matched = False
         for pattern in link_patterns:
-            if re.search(pattern, href):
-                # 一覧ページ自身へのリンクは除外
-                if absolute_url.rstrip('/') != base_url.rstrip('/'):
-                    clinic_links.append({
-                        'url': absolute_url,
-                        'name': a.get_text(strip=True)
-                    })
+            if re.search(pattern, href, re.IGNORECASE):
+                pattern_matched = True
                 break
+        
+        # Check if link text contains store keywords
+        keyword_matched = any(keyword in text for keyword in store_keywords)
+        
+        # Calculate confidence score
+        confidence = 0
+        if pattern_matched:
+            confidence += 50
+        if keyword_matched:
+            confidence += 30
+        if len(text) < 50:  # Short text is more likely to be a store name
+            confidence += 10
+        if re.search(r'[都道府県市区町村]', text):  # Contains location kanji
+            confidence += 10
+        
+        if confidence >= 40:  # Threshold for inclusion
+            all_links.append({
+                'url': absolute_url,
+                'name': text,
+                'confidence': confidence
+            })
     
-    # 重複を除去
+    # Sort by confidence and deduplicate
+    all_links.sort(key=lambda x: x['confidence'], reverse=True)
+    
     seen = set()
     unique_links = []
-    for link in clinic_links:
+    for link in all_links:
         if link['url'] not in seen:
             seen.add(link['url'])
-            unique_links.append(link)
+            unique_links.append({
+                'url': link['url'],
+                'name': link['name']
+            })
     
-    return unique_links  # 全店舗を処理
+    # Additional heuristic: if we find many links with similar patterns, they're likely store pages
+    if len(unique_links) < 3:
+        # Try to find links that share common patterns
+        link_groups = {}
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            absolute_url = urljoin(base_url, href)
+            
+            # Extract the pattern (e.g., /something/VARIABLE/)
+            path_parts = urlparse(absolute_url).path.strip('/').split('/')
+            if len(path_parts) >= 2:
+                pattern_key = '/'.join(path_parts[:-1])
+                if pattern_key not in link_groups:
+                    link_groups[pattern_key] = []
+                link_groups[pattern_key].append({
+                    'url': absolute_url,
+                    'name': a.get_text(strip=True)
+                })
+        
+        # Find groups with multiple similar links
+        for pattern, links in link_groups.items():
+            if len(links) >= 3:  # Found a pattern with multiple links
+                for link in links:
+                    if link['url'] not in seen and link['url'].rstrip('/') != base_url.rstrip('/'):
+                        seen.add(link['url'])
+                        unique_links.append(link)
+    
+    return unique_links
 
 @app.route('/api/scrape', methods=['POST'])
 def scrape():
@@ -588,15 +688,20 @@ def scrape():
         
         clinic_data = []
         
+        # 店舗一覧ページかチェック（複数の店舗リンクがある場合）
+        clinic_links = find_clinic_links(soup, url)
+        is_list_page = len(clinic_links) > 3
+        
         # まず現在のページから情報を抽出
         current_page_info = extract_clinic_info(soup, url)
         
-        # 店舗情報が取得できた場合は追加
-        if current_page_info['name'] and (current_page_info['address'] or current_page_info['access']):
-            clinic_data.append(current_page_info)
+        # 一覧ページではない、または個別店舗ページの場合のみ追加
+        # 一覧ページの判定: "一覧"、"クリニック一覧"、"店舗一覧" などのタイトル
+        is_individual_store = not any(keyword in current_page_info['name'] for keyword in ['一覧', 'リスト', 'List'])
         
-        # 店舗一覧ページかチェック（複数の店舗リンクがある場合）
-        clinic_links = find_clinic_links(soup, url)
+        # 店舗情報が取得できた場合は追加
+        if current_page_info['name'] and (current_page_info['address'] or current_page_info['access']) and (not is_list_page or is_individual_store):
+            clinic_data.append(current_page_info)
         
         if len(clinic_links) > 3:  # 3つ以上のリンクがある場合は一覧ページと判断
             # 全店舗を処理
@@ -618,16 +723,35 @@ def scrape():
         
         # CSVデータを生成
         output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=['店舗名', '住所', 'アクセス', 'URL'])
+        
+        # Determine which fields are available
+        has_phone = any('phone' in clinic and clinic['phone'] for clinic in clinic_data)
+        has_hours = any('hours' in clinic and clinic['hours'] for clinic in clinic_data)
+        
+        # Build fieldnames dynamically
+        fieldnames = ['店舗名', '住所', 'アクセス']
+        if has_phone:
+            fieldnames.append('電話番号')
+        if has_hours:
+            fieldnames.append('営業時間')
+        fieldnames.append('URL')
+        
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
         
         for clinic in clinic_data:
-            writer.writerow({
+            row = {
                 '店舗名': clinic['name'],
                 '住所': clinic['address'],
                 'アクセス': clinic['access'],
                 'URL': clinic['url']
-            })
+            }
+            if has_phone:
+                row['電話番号'] = clinic.get('phone', '')
+            if has_hours:
+                row['営業時間'] = clinic.get('hours', '')
+            
+            writer.writerow(row)
         
         csv_data = output.getvalue()
         
