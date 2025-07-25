@@ -120,34 +120,30 @@ class ClinicInfoScraper:
             text_content = soup.get_text()
             # 複数の駅情報パターンを探す
             station_patterns = [
-                r'([^\s]+線)?[^\s]*?「([^\s]+駅)」[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
-                r'([^\s]+線)?[^\s]*?「([^\s]+停留場)」[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
-                r'([^\s]+線)?[^\s]*?([^\s]+駅)[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+                r'「([^\s]+駅)」[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+                r'「([^\s]+停留場)」[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+                r'([^\s]+駅)[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
             ]
             
-            access_items = []
+            found_station = None
+            min_minutes = 999
+            
+            # 最も近い駅を探す
             for pattern in station_patterns:
                 matches = re.findall(pattern, text_content)
                 for match in matches:
-                    if len(match) == 3:
-                        line = match[0] if match[0] else ''
-                        station = match[1]
-                        minutes = match[2]
-                        if line:
-                            access_items.append(f"{line}{station} 徒歩{minutes}分")
-                        else:
-                            access_items.append(f"{station} 徒歩{minutes}分")
+                    if len(match) == 2:
+                        station = match[0]
+                        try:
+                            minutes = int(match[1])
+                            if minutes < min_minutes:
+                                min_minutes = minutes
+                                found_station = f"{station}から徒歩約{minutes}分"
+                        except ValueError:
+                            continue
             
-            # 重複を削除
-            seen = set()
-            unique_access = []
-            for item in access_items:
-                if item not in seen:
-                    seen.add(item)
-                    unique_access.append(item)
-            
-            if unique_access:
-                clinic_info['access'] = '、'.join(unique_access[:4])  # 最大4つまで
+            if found_station:
+                clinic_info['access'] = found_station
         
         # 汎用的な抽出（上記以外のサイト）
         else:
@@ -175,10 +171,29 @@ class ClinicInfoScraper:
                     break
             
             # アクセス情報の抽出（駅名と徒歩分数）
-            access_pattern = r'(?:JR|東京メトロ|都営|私鉄)?.*?(?:線)?.*?駅.*?(?:徒歩|歩いて).*?\d+分'
-            access_match = re.search(access_pattern, text_content)
-            if access_match:
-                clinic_info['access'] = access_match.group(0)
+            access_patterns = [
+                r'([^\s]+駅).*?(?:徒歩|歩いて).*?(\d+)分',
+                r'([^\s]+停留場).*?(?:徒歩|歩いて).*?(\d+)分',
+            ]
+            
+            found_station = None
+            min_minutes = 999
+            
+            for pattern in access_patterns:
+                matches = re.findall(pattern, text_content)
+                for match in matches:
+                    if len(match) == 2:
+                        station = match[0]
+                        try:
+                            minutes = int(match[1])
+                            if minutes < min_minutes:
+                                min_minutes = minutes
+                                found_station = f"{station}から徒歩約{minutes}分"
+                        except ValueError:
+                            continue
+            
+            if found_station:
+                clinic_info['access'] = found_station
         
         return clinic_info
     
