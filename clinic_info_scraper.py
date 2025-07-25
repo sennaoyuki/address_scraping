@@ -40,8 +40,17 @@ class ClinicInfoScraper:
         }
     
     def extract_clinic_info(self, soup, url, clinic_name=""):
-        """ページから店舗情報を抽出 - Universal Scraperを使用"""
-        # Use the universal scraper
+        """ページから店舗情報を抽出"""
+        domain = urlparse(url).netloc
+        
+        # 特定のサイトの場合はレガシー抽出を使用
+        legacy_domains = ['dioclinic', 'eminal-clinic', 'frey-a', 'seishin-biyou', 'rizeclinic', 's-b-c.net']
+        
+        for legacy_domain in legacy_domains:
+            if legacy_domain in domain:
+                return self.extract_clinic_info_legacy(soup, url, clinic_name)
+        
+        # それ以外は汎用スクレイパーを使用
         result = self.universal_scraper.extract_store_info(soup, url, clinic_name)
         
         # Transform to the expected format
@@ -113,21 +122,48 @@ class ClinicInfoScraper:
         
         # フレイアクリニック
         elif 'frey-a' in domain:
-            # 店舗名
+            # 店舗名 - h1タグから取得し、不要な部分を削除
             h1_elem = soup.find('h1')
             if h1_elem:
-                clinic_info['name'] = h1_elem.get_text(strip=True)
+                name = h1_elem.get_text(strip=True)
+                # "札幌で医療脱毛するなら" のような前置きを削除
+                if '医療脱毛するなら' in name:
+                    name = name.split('医療脱毛するなら')[-1].strip()
+                clinic_info['name'] = name
             
-            # テーブルから情報抽出
-            for tr in soup.find_all('tr'):
-                th = tr.find('th')
-                td = tr.find('td')
-                if th and td:
-                    header = th.get_text(strip=True)
-                    if '所在地' in header:
-                        clinic_info['address'] = td.get_text(strip=True)
-                    elif 'アクセス' in header:
-                        clinic_info['access'] = td.get_text(strip=True)
+            # dl/dt/dd構造から情報抽出（フレイアクリニックの現在の構造）
+            dl_elems = soup.find_all('dl')
+            for dl in dl_elems:
+                dts = dl.find_all('dt')
+                dds = dl.find_all('dd')
+                
+                for dt, dd in zip(dts, dds):
+                    header = dt.get_text(strip=True)
+                    value = dd.get_text(strip=True)
+                    
+                    if 'クリニック住所' in header or '住所' in header:
+                        # 住所から余分な情報を削除
+                        address = value.split('当院には')[0].strip()
+                        clinic_info['address'] = address
+                    elif '最寄り駅' in header or 'アクセス' in header:
+                        # アクセス情報から最も近い駅を抽出
+                        access_text = value.split('出口まで')[0].strip()
+                        # 複数の駅情報から最初のものを使用
+                        access_lines = access_text.split('\n')
+                        if access_lines:
+                            clinic_info['access'] = access_lines[0].strip()
+            
+            # もしdl構造で見つからない場合は、テーブルから情報抽出（旧構造対応）
+            if not clinic_info['address']:
+                for tr in soup.find_all('tr'):
+                    th = tr.find('th')
+                    td = tr.find('td')
+                    if th and td:
+                        header = th.get_text(strip=True)
+                        if '所在地' in header:
+                            clinic_info['address'] = td.get_text(strip=True)
+                        elif 'アクセス' in header:
+                            clinic_info['access'] = td.get_text(strip=True)
         
         # 聖心美容クリニック
         elif 'seishin-biyou' in domain:
