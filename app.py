@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-クリニック画像スクレイパー ウェブアプリケーション
+クリニック店舗情報スクレイパー ウェブアプリケーション
 """
 
 from flask import Flask, render_template, request, jsonify, send_file
 from flask_cors import CORS
 import os
 import threading
-from scraper_module import ClinicImageScraper
+from clinic_info_scraper import ClinicInfoScraper
 import time
 
 app = Flask(__name__)
@@ -34,17 +34,24 @@ def start_scrape():
     session_id = str(int(time.time() * 1000))
     
     # スクレイパーインスタンスを作成
-    scraper = ClinicImageScraper()
+    scraper = ClinicInfoScraper()
     scrapers[session_id] = scraper
     
     # バックグラウンドでスクレイピングを実行
     def run_scrape():
-        result = scraper.scrape_images(url)
-        if result and result['success']:
+        success = scraper.scrape_clinics(url)
+        if success:
+            # CSVファイルを保存
+            csv_filename = scraper.save_to_csv()
             # セッション情報にダウンロード情報を追加
             scrapers[session_id] = {
                 'scraper': scraper,
-                'result': result
+                'result': {
+                    'success': True,
+                    'filename': os.path.basename(csv_filename),
+                    'download_url': f'/download/{os.path.basename(csv_filename)}',
+                    'clinic_count': len(scraper.clinic_data)
+                }
             }
     
     thread = threading.Thread(target=run_scrape)
@@ -86,7 +93,8 @@ def download_file(filename):
     return send_file(
         file_path,
         as_attachment=True,
-        download_name=filename
+        download_name=filename,
+        mimetype='text/csv'
     )
 
 @app.route('/api/cleanup', methods=['POST'])

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>クリニック画像スクレイパー</title>
+    <title>クリニック店舗情報スクレイパー</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/static/css/style.css">
@@ -12,7 +12,7 @@
     <nav class="navbar navbar-dark bg-primary">
         <div class="container">
             <span class="navbar-brand mb-0 h1">
-                <i class="bi bi-hospital"></i> クリニック画像スクレイパー
+                <i class="bi bi-hospital"></i> クリニック店舗情報スクレイパー
             </span>
         </div>
     </nav>
@@ -23,23 +23,22 @@
                 <div class="card shadow">
                     <div class="card-body">
                         <h2 class="card-title text-center mb-4">
-                            <i class="bi bi-camera"></i> クリニック画像を自動収集
+                            <i class="bi bi-building"></i> クリニック店舗情報を自動収集
                         </h2>
                         
                         <div class="alert alert-warning" role="alert">
-                            <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Vercel環境での制限</h5>
+                            <h5 class="alert-heading"><i class="bi bi-info-circle"></i> 店舗情報収集ツール</h5>
                             <p class="mb-0">
-                                現在Vercel環境では完全な機能は利用できません。<br>
-                                完全な機能を利用するには、ローカル環境で<code>python app.py</code>を実行してください。
+                                クリニックの店舗名、住所、アクセス情報（駅からの分数）を自動収集し、<br>
+                                CSVファイルでダウンロードできます。
                             </p>
                         </div>
                         
                         <div class="alert alert-info" role="alert">
-                            <h5 class="alert-heading"><i class="bi bi-info-circle"></i> 対応サイト（ローカル環境）</h5>
+                            <h5 class="alert-heading"><i class="bi bi-check-circle"></i> 対応サイト</h5>
                             <p class="mb-0">
-                                DIOクリニック、エミナルクリニック、DR.スキンクリニック、フレイアクリニック、
-                                リエートクリニック、リゼクリニック、ビューティースキンクリニック、メンズライフクリニック
-                                など多数のクリニックサイトに対応しています。
+                                DIOクリニック、エミナルクリニック、フレイアクリニック、リゼクリニック、<br>
+                                その他多数のクリニックサイトに対応しています。
                             </p>
                         </div>
 
@@ -82,7 +81,7 @@
                                 <p id="resultMessage"></p>
                                 <hr>
                                 <a id="downloadBtn" class="btn btn-success" href="#" download>
-                                    <i class="bi bi-download"></i> ZIPファイルをダウンロード
+                                    <i class="bi bi-file-earmark-csv"></i> CSVファイルをダウンロード
                                 </a>
                             </div>
                         </div>
@@ -104,11 +103,11 @@
                         <ol>
                             <li>クリニックの一覧ページまたは店舗ページのURLを入力</li>
                             <li>「スクレイピング開始」ボタンをクリック</li>
-                            <li>自動的に店舗画像を検出・ダウンロード</li>
-                            <li>完了後、ZIPファイルでまとめてダウンロード</li>
+                            <li>自動的に店舗情報（名前、住所、アクセス）を収集</li>
+                            <li>完了後、CSVファイルでダウンロード</li>
                         </ol>
                         <p class="text-muted small mb-0">
-                            ※ メインページに画像がない場合は、自動的に各店舗の詳細ページを探索します
+                            ※ 一覧ページの場合は、自動的に各店舗の詳細ページを探索します
                         </p>
                     </div>
                 </div>
@@ -118,7 +117,7 @@
 
     <footer class="mt-5 py-3 bg-light">
         <div class="container text-center text-muted">
-            <small>クリニック画像スクレイパー &copy; 2024</small>
+            <small>クリニック店舗情報スクレイパー &copy; 2024</small>
         </div>
     </footer>
 

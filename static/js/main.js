@@ -1,4 +1,4 @@
-// クリニック画像スクレイパー メインスクリプト
+// クリニック店舗情報スクレイパー メインスクリプト
 
 let currentSessionId = null;
 let progressInterval = null;
@@ -95,7 +95,7 @@ function showResult(result) {
     const resultMessage = document.getElementById('resultMessage');
     const downloadBtn = document.getElementById('downloadBtn');
     
-    resultMessage.textContent = `${result.domain} から ${result.image_count} 枚の画像を取得しました。`;
+    resultMessage.textContent = `${result.clinic_count} 件の店舗情報を取得しました！`;
     downloadBtn.href = result.download_url;
     downloadBtn.download = result.filename;
     
