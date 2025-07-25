@@ -571,8 +571,9 @@ def scrape():
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         
-        # ページを取得
-        response = requests.get(url, headers=headers, timeout=10)
+        # ページを取得（SBCサイト用のタイムアウト調整）
+        timeout_seconds = 5 if 's-b-c.net' in url else 10
+        response = requests.get(url, headers=headers, timeout=timeout_seconds)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
         
@@ -592,8 +593,9 @@ def scrape():
             # 全店舗を処理
             for link in clinic_links:
                 try:
-                    # 各店舗ページを取得
-                    clinic_response = requests.get(link['url'], headers=headers, timeout=10)
+                    # 各店舗ページを取得（SBCサイト用のタイムアウト調整）
+                    clinic_timeout = 3 if 's-b-c.net' in link['url'] else 10
+                    clinic_response = requests.get(link['url'], headers=headers, timeout=clinic_timeout)
                     clinic_response.raise_for_status()
                     clinic_soup = BeautifulSoup(clinic_response.content, 'html.parser')
                     
@@ -632,6 +634,16 @@ def scrape():
             'filename': filename
         })
         
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False, 
+            'error': 'アクセスタイムアウト: このサイトは現在アクセスできない可能性があります（アクセス制限またはサーバー負荷）'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False, 
+            'error': f'ネットワークエラー: {str(e)}'
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
