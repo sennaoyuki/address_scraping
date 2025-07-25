@@ -402,6 +402,7 @@ def find_clinic_links(soup, base_url):
         r'/store/[^/]+/?$',
         r'/shop/[^/]+/?$',
         r'/access/[^/]+/?$',
+        r'/locations/[^/]+/?$',  # リゼクリニック用
     ]
     
     # すべてのリンクを確認
@@ -412,10 +413,12 @@ def find_clinic_links(soup, base_url):
         # パターンマッチング
         for pattern in link_patterns:
             if re.search(pattern, href):
-                clinic_links.append({
-                    'url': absolute_url,
-                    'name': a.get_text(strip=True)
-                })
+                # 一覧ページ自身へのリンクは除外
+                if absolute_url.rstrip('/') != base_url.rstrip('/'):
+                    clinic_links.append({
+                        'url': absolute_url,
+                        'name': a.get_text(strip=True)
+                    })
                 break
     
     # 重複を除去
@@ -426,7 +429,7 @@ def find_clinic_links(soup, base_url):
             seen.add(link['url'])
             unique_links.append(link)
     
-    return unique_links[:10]  # Vercelのタイムアウト対策で最大10件
+    return unique_links  # 全店舗を処理
 
 @app.route('/api/scrape', methods=['POST'])
 def scrape():
@@ -443,7 +446,7 @@ def scrape():
         }
         
         # ページを取得
-        response = requests.get(url, headers=headers, timeout=5)
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
         
@@ -460,11 +463,11 @@ def scrape():
         clinic_links = find_clinic_links(soup, url)
         
         if len(clinic_links) > 3:  # 3つ以上のリンクがある場合は一覧ページと判断
-            # Vercelのタイムアウト対策で最初の5件のみ処理
-            for link in clinic_links[:5]:
+            # 全店舗を処理
+            for link in clinic_links:
                 try:
                     # 各店舗ページを取得
-                    clinic_response = requests.get(link['url'], headers=headers, timeout=3)
+                    clinic_response = requests.get(link['url'], headers=headers, timeout=10)
                     clinic_response.raise_for_status()
                     clinic_soup = BeautifulSoup(clinic_response.content, 'html.parser')
                     
