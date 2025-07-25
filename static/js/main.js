@@ -52,12 +52,15 @@ function startProgressTracking() {
             const response = await fetch(`/api/progress/${currentSessionId}`);
             const data = await response.json();
             
+            console.log('Progress data:', data); // デバッグ用
+            
             if (response.ok) {
                 updateProgress(data);
                 
                 if (data.completed) {
                     clearInterval(progressInterval);
                     if (data.result && data.result.success) {
+                        console.log('Result:', data.result); // デバッグ用
                         showResult(data.result);
                     } else {
                         showError(data.result?.error || '処理中にエラーが発生しました。');
@@ -95,7 +98,11 @@ function showResult(result) {
     const resultMessage = document.getElementById('resultMessage');
     const downloadBtn = document.getElementById('downloadBtn');
     
-    resultMessage.textContent = `${result.clinic_count} 件の店舗情報を取得しました！`;
+    // clinic_countが未定義または0の場合のデバッグ情報
+    const clinicCount = result.clinic_count || 0;
+    console.log('Showing result with clinic_count:', clinicCount, 'from result:', result);
+    
+    resultMessage.textContent = `${clinicCount} 件の店舗情報を取得しました！`;
     downloadBtn.href = result.download_url;
     downloadBtn.download = result.filename;
     

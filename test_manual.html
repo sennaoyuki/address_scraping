@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>リゼクリニック手動テスト</title>
+</head>
+<body>
+    <h1>リゼクリニック スクレイピングテスト</h1>
+    <button onclick="startScraping()">スクレイピング開始</button>
+    <div id="status"></div>
+    <div id="result"></div>
+
+    <script>
+        let sessionId = null;
+        let checkInterval = null;
+
+        async function startScraping() {
+            const url = 'https://www.rizeclinic.com/locations/';
+            document.getElementById('status').innerHTML = 'スクレイピング開始中...';
+            
+            try {
+                const response = await fetch('http://127.0.0.1:5001/api/scrape', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                console.log('Start response:', data);
+                
+                if (data.success && data.session_id) {
+                    sessionId = data.session_id;
+                    checkProgress();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('status').innerHTML = 'エラー: ' + error.message;
+            }
+        }
+
+        async function checkProgress() {
+            checkInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`http://127.0.0.1:5001/api/progress/${sessionId}`);
+                    const data = await response.json();
+                    console.log('Progress:', data);
+                    
+                    document.getElementById('status').innerHTML = 
+                        `進捗: ${data.percentage}% (${data.progress}/${data.total})<br>` +
+                        `ステータス: ${data.status}<br>` +
+                        `現在: ${data.current_action}`;
+                    
+                    if (data.completed) {
+                        clearInterval(checkInterval);
+                        if (data.result && data.result.success) {
+                            document.getElementById('result').innerHTML = 
+                                `<h2>完了!</h2>` +
+                                `<p>取得した店舗数: ${data.result.clinic_count}</p>` +
+                                `<a href="http://127.0.0.1:5001${data.result.download_url}" download>CSVダウンロード</a>`;
+                        } else {
+                            document.getElementById('result').innerHTML = 
+                                `<h2>エラー</h2>` +
+                                `<p>${data.result ? data.result.error : 'Unknown error'}</p>`;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Progress check error:', error);
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

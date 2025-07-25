@@ -39,17 +39,40 @@ def start_scrape():
     
     # バックグラウンドでスクレイピングを実行
     def run_scrape():
-        success = scraper.scrape_clinics(url)
-        if success:
-            # CSVファイルを保存
-            csv_filename = scraper.save_to_csv()
-            # セッション情報にダウンロード情報を追加
+        try:
+            print(f"Starting scraping for URL: {url}")  # デバッグ用
+            success = scraper.scrape_clinics(url)
+            print(f"Scraping completed. Success: {success}, Clinic count: {len(scraper.clinic_data)}")  # デバッグ用
+            if success:
+                # CSVファイルを保存
+                csv_filename = scraper.save_to_csv()
+                # セッション情報にダウンロード情報を追加
+                scrapers[session_id] = {
+                    'scraper': scraper,
+                    'result': {
+                        'success': True,
+                        'filename': os.path.basename(csv_filename),
+                        'download_url': f'/download/{os.path.basename(csv_filename)}',
+                        'clinic_count': len(scraper.clinic_data)
+                    }
+                }
+            else:
+                # エラー時もセッション情報を更新
+                scrapers[session_id] = {
+                    'scraper': scraper,
+                    'result': {
+                        'success': False,
+                        'error': scraper.current_action,
+                        'clinic_count': len(scraper.clinic_data)
+                    }
+                }
+        except Exception as e:
+            # 例外をキャッチして記録
             scrapers[session_id] = {
                 'scraper': scraper,
                 'result': {
-                    'success': True,
-                    'filename': os.path.basename(csv_filename),
-                    'download_url': f'/download/{os.path.basename(csv_filename)}',
+                    'success': False,
+                    'error': str(e),
                     'clinic_count': len(scraper.clinic_data)
                 }
             }
@@ -80,6 +103,8 @@ def get_progress(session_id):
         # スクレイパーインスタンスの場合は進行中
         progress = scraper_data.get_progress()
         progress['completed'] = False
+        # clinic_countを確実に含める
+        progress['clinic_count'] = len(scraper_data.clinic_data) if hasattr(scraper_data, 'clinic_data') else 0
         return jsonify(progress)
 
 @app.route('/download/<filename>')
