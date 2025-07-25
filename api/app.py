@@ -567,8 +567,17 @@ def scrape():
         if not url:
             return jsonify({'success': False, 'error': 'URLが指定されていません'})
         
+        # SBCサイトのデバッグ情報
+        if 's-b-c.net' in url:
+            print(f"[DEBUG] SBC site detected: {url}")
+        
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ja,en-US;q=0.7,en;q=0.3',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
         }
         
         # ページを取得（SBCサイト用のタイムアウト調整）
