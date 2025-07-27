@@ -289,6 +289,53 @@ class ClinicInfoScraper:
                 if matches:
                     clinic_info['access'] = f"{matches[0]}最寄り"
         
+        # TCB東京中央美容外科
+        elif 'aoki-tsuyoshi.com' in domain:
+            # TCBは1ページに複数の店舗が表示される場合がある
+            # H2タグで各店舗を識別
+            h2_tags = soup.find_all('h2')
+            
+            # 現在のページが個別店舗ページかチェック
+            for h2 in h2_tags:
+                h2_text = h2.get_text(strip=True)
+                if 'TCB' in h2_text and '院' in h2_text:
+                    # この店舗の情報を抽出
+                    clinic_info['name'] = h2_text
+                    
+                    # H2の親要素から情報を探す
+                    parent = h2.parent
+                    while parent and parent.name != 'body':
+                        parent_text = parent.get_text()
+                        
+                        # 住所パターン
+                        address_match = re.search(r'〒\d{3}-\d{4}[^\n]*', parent_text)
+                        if address_match and not clinic_info['address']:
+                            clinic_info['address'] = address_match.group(0).strip()
+                        
+                        # アクセスパターン（駅から徒歩）
+                        access_patterns = [
+                            r'([^\s]+駅)[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+                            r'([^\s]+駅)[^\n]*?(\d+)分',
+                        ]
+                        
+                        for pattern in access_patterns:
+                            matches = re.findall(pattern, parent_text)
+                            if matches and not clinic_info['access']:
+                                station = matches[0][0]
+                                minutes = matches[0][1]
+                                clinic_info['access'] = f"{station}から徒歩約{minutes}分"
+                                break
+                        
+                        # 必要な情報が揃ったら終了
+                        if clinic_info['name'] and clinic_info['address'] and clinic_info['access']:
+                            break
+                        
+                        parent = parent.parent
+                    
+                    # 最初の店舗情報を返す（個別ページの場合）
+                    if clinic_info['address']:
+                        break
+        
         # リゼクリニック
         elif 'rizeclinic' in domain:
             # 店舗名 - h1タグから取得
@@ -406,6 +453,7 @@ class ClinicInfoScraper:
             r'/locations/[^/]+/?$',  # リゼクリニック用
             r'/clinic/branch/[^/]+/?$',  # SBC湘南美容クリニック用
             r'/hifuka/[^/]+/?$',  # SBC湘南美容クリニック用
+            r'/clinic/[a-z]+/?$',  # TCB東京中央美容外科用 (e.g., /clinic/shinjuku)
             
             # Generic patterns that might be store pages
             r'/[^/]+[-_](?:store|shop|clinic|branch)/?$',
