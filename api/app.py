@@ -287,7 +287,16 @@ def extract_clinic_info_legacy(soup, url, clinic_name=""):
         'url': url
     }
     
+    from urllib.parse import urlparse
     domain = urlparse(url).netloc
+    
+    print(f"[DEBUG] extract_clinic_info_legacy - Domain: {domain}, URL: {url}")
+    
+    # Log HTML structure for debugging
+    if 'frey-a' in domain:
+        dl_count = len(soup.find_all('dl'))
+        tr_count = len(soup.find_all('tr'))
+        print(f"[DEBUG] Freya page structure - DL elements: {dl_count}, TR elements: {tr_count}")
     
     # DIOクリニック
     if 'dioclinic' in domain:
@@ -371,6 +380,40 @@ def extract_clinic_info_legacy(soup, url, clinic_name=""):
                         clinic_info['address'] = td.get_text(strip=True)
                     elif 'アクセス' in header:
                         clinic_info['access'] = td.get_text(strip=True)
+        
+        # 最終的にまだ見つからない場合は正規表現でテキスト全体から抽出
+        if not clinic_info['address'] or not clinic_info['access']:
+            print(f"[DEBUG] Freya - Falling back to regex extraction")
+            text_content = soup.get_text()
+            
+            # 住所パターン
+            if not clinic_info['address']:
+                address_patterns = [
+                    r'〒\d{3}-\d{4}\s*[^\n]*?(?:市|区|町|村)[^\n]*?(?:ビル|館|[0-9]+階)',
+                    r'〒\d{3}-\d{4}[^\n]*',
+                ]
+                for pattern in address_patterns:
+                    match = re.search(pattern, text_content)
+                    if match:
+                        clinic_info['address'] = match.group(0).strip()
+                        print(f"[DEBUG] Freya address found via regex: {clinic_info['address']}")
+                        break
+            
+            # アクセスパターン
+            if not clinic_info['access']:
+                access_patterns = [
+                    r'([^\s]+駅)[^\n]*?(?:から|より)?[^\n]*?(?:徒歩)?[^\n]*?(\d+)分',
+                    r'([^\s]+線)[^\n]*?「?([^\s]+駅)」?[^\n]*?(?:徒歩)?[^\n]*?(\d+)分',
+                ]
+                for pattern in access_patterns:
+                    matches = re.findall(pattern, text_content)
+                    if matches:
+                        if len(matches[0]) == 2:
+                            clinic_info['access'] = f"{matches[0][0]}から徒歩約{matches[0][1]}分"
+                        elif len(matches[0]) == 3:
+                            clinic_info['access'] = f"{matches[0][1]}から徒歩約{matches[0][2]}分"
+                        print(f"[DEBUG] Freya access found via regex: {clinic_info['access']}")
+                        break
     
     # 聖心美容クリニック
     elif 'seishin-biyou' in domain:

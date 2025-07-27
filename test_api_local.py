@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-API のローカルテスト（extract_clinic_info_legacy）
+API のローカルテスト（ClinicInfoScraper）
 """
 
-import sys
-sys.path.append('api')
-from app import extract_clinic_info_legacy
+from clinic_info_scraper import ClinicInfoScraper
 import requests
 from bs4 import BeautifulSoup
 
@@ -14,7 +12,8 @@ url = "https://frey-a.jp/clinic/sapporo/"
 response = requests.get(url, timeout=10)
 soup = BeautifulSoup(response.content, 'html.parser')
 
-result = extract_clinic_info_legacy(soup, url, "テスト")
+scraper = ClinicInfoScraper()
+result = scraper.extract_clinic_info_legacy(soup, url, "テスト")
 
 print(f"URL: {url}")
 print(f"名前: {result['name']}")
