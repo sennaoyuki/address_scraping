@@ -334,6 +334,18 @@ def extract_clinic_info_legacy(soup, url, clinic_name=""):
     elif 'frey-a' in domain:
         print(f"[DEBUG] Processing Freya clinic - URL: {url}")
         
+        # デバッグ: ページ全体のテキストを確認
+        page_text = soup.get_text()
+        if '〒' in page_text:
+            print(f"[DEBUG] Postal code found in page text")
+        else:
+            print(f"[DEBUG] No postal code found in page text")
+            # ページタイトルとサンプルテキストを出力
+            title = soup.find('title')
+            if title:
+                print(f"[DEBUG] Page title: {title.get_text()}")
+            print(f"[DEBUG] First 200 chars: {page_text[:200]}")
+        
         # 店舗名 - h1タグから取得し、不要な部分を削除
         h1_elem = soup.find('h1')
         if h1_elem:
@@ -777,6 +789,12 @@ def scrape():
         # ページを取得（SBCサイト用のタイムアウト調整）
         timeout_seconds = 5 if 's-b-c.net' in url else 10
         response = requests.get(url, headers=headers, timeout=timeout_seconds)
+        
+        # デバッグ: レスポンスステータス
+        if 'frey-a' in url:
+            print(f"[DEBUG] Freya response status: {response.status_code}")
+            print(f"[DEBUG] Freya content length: {len(response.content)}")
+        
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
         
