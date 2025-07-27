@@ -872,11 +872,21 @@ def scrape():
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"{domain}_clinics_{timestamp}.csv"
         
+        # Special handling for Freya - return a flag if no data was extracted
+        needs_client_side = False
+        if 'frey-a' in domain and clinic_data:
+            # Check if any Freya clinic has missing address/access
+            for clinic in clinic_data:
+                if 'フレイア' in clinic['name'] and (not clinic['address'] or not clinic['access']):
+                    needs_client_side = True
+                    break
+        
         return jsonify({
             'success': True,
             'clinic_count': len(clinic_data),
             'csv_data': csv_data,
-            'filename': filename
+            'filename': filename,
+            'needs_client_side': needs_client_side
         })
         
     except requests.exceptions.Timeout:
