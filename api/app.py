@@ -248,7 +248,7 @@ def extract_clinic_info(soup, url, clinic_name=""):
     print(f"[DEBUG] extract_clinic_info - URL: {url}, Domain: {domain}")
     
     # 特定のサイトの場合はレガシー抽出を使用
-    legacy_domains = ['dioclinic', 'eminal-clinic', 'frey-a', 'seishin-biyou', 'rizeclinic', 's-b-c.net']
+    legacy_domains = ['dioclinic', 'eminal-clinic', 'frey-a', 'seishin-biyou', 'rizeclinic', 's-b-c.net', 'aoki-tsuyoshi.com']
     
     for legacy_domain in legacy_domains:
         if legacy_domain in domain:
@@ -567,26 +567,29 @@ def extract_clinic_info_legacy(soup, url, clinic_name=""):
                 # H2の親要素から情報を探す
                 parent = h2.parent
                 while parent and parent.name != 'body':
-                    parent_text = parent.get_text()
-                    
-                    # 住所パターン
-                    address_match = re.search(r'〒\d{3}-\d{4}[^\n]*', parent_text)
-                    if address_match and not clinic_info['address']:
-                        clinic_info['address'] = address_match.group(0).strip()
+                    # pタグから住所を直接探す
+                    if not clinic_info['address']:
+                        for p in parent.find_all('p'):
+                            p_text = p.get_text(strip=True)
+                            if p_text.startswith('〒') and ('都' in p_text or '道' in p_text or '府' in p_text or '県' in p_text):
+                                clinic_info['address'] = p_text
+                                break
                     
                     # アクセスパターン（駅から徒歩）
-                    access_patterns = [
-                        r'([^\s]+駅)[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
-                        r'([^\s]+駅)[^\n]*?(\d+)分',
-                    ]
-                    
-                    for pattern in access_patterns:
-                        matches = re.findall(pattern, parent_text)
-                        if matches and not clinic_info['access']:
-                            station = matches[0][0]
-                            minutes = matches[0][1]
-                            clinic_info['access'] = f"{station}から徒歩約{minutes}分"
-                            break
+                    if not clinic_info['access']:
+                        parent_text = parent.get_text()
+                        access_patterns = [
+                            r'([^\s]+駅)[^\n]*?(?:徒歩|歩いて)[^\n]*?(\d+)分',
+                            r'([^\s]+駅)[^\n]*?(\d+)分',
+                        ]
+                        
+                        for pattern in access_patterns:
+                            matches = re.findall(pattern, parent_text)
+                            if matches:
+                                station = matches[0][0]
+                                minutes = matches[0][1]
+                                clinic_info['access'] = f"{station}から徒歩約{minutes}分"
+                                break
                     
                     # 必要な情報が揃ったら終了
                     if clinic_info['name'] and clinic_info['address'] and clinic_info['access']:
