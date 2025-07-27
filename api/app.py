@@ -879,5 +879,58 @@ def health():
     """ヘルスチェック"""
     return jsonify({'status': 'ok'})
 
+@app.route('/api/debug-freya', methods=['GET'])
+def debug_freya():
+    """Debug Freya HTML structure"""
+    try:
+        url = request.args.get('url', 'https://frey-a.jp/clinic/sapporo/')
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Count elements
+        dl_count = len(soup.find_all('dl'))
+        dt_count = len(soup.find_all('dt'))
+        dd_count = len(soup.find_all('dd'))
+        tr_count = len(soup.find_all('tr'))
+        
+        # Find specific elements
+        address_found = False
+        access_found = False
+        
+        # Check dl/dt/dd
+        for dl in soup.find_all('dl'):
+            for dt in dl.find_all('dt'):
+                if 'クリニック住所' in dt.get_text() or '住所' in dt.get_text():
+                    address_found = True
+                if '最寄り駅' in dt.get_text() or 'アクセス' in dt.get_text():
+                    access_found = True
+        
+        # Get sample text
+        sample_text = soup.get_text()[:500]
+        
+        # Check for postal code pattern
+        import re
+        postal_match = re.search(r'〒\d{3}-\d{4}', sample_text)
+        
+        return jsonify({
+            'url': url,
+            'dl_count': dl_count,
+            'dt_count': dt_count,
+            'dd_count': dd_count,
+            'tr_count': tr_count,
+            'address_found_in_dt': address_found,
+            'access_found_in_dt': access_found,
+            'postal_code_found': bool(postal_match),
+            'sample_text': sample_text,
+            'title': soup.find('title').get_text() if soup.find('title') else 'No title'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 # Vercel用のエクスポート
 app = app
