@@ -240,8 +240,18 @@ def index():
     """
 
 def extract_clinic_info(soup, url, clinic_name=""):
-    """ページから店舗情報を抽出 - Universal Scraperを使用"""
-    # Use the universal scraper
+    """ページから店舗情報を抽出"""
+    from urllib.parse import urlparse
+    domain = urlparse(url).netloc
+    
+    # 特定のサイトの場合はレガシー抽出を使用
+    legacy_domains = ['dioclinic', 'eminal-clinic', 'frey-a', 'seishin-biyou', 'rizeclinic', 's-b-c.net']
+    
+    for legacy_domain in legacy_domains:
+        if legacy_domain in domain:
+            return extract_clinic_info_legacy(soup, url, clinic_name)
+    
+    # それ以外は汎用スクレイパーを使用
     result = universal_scraper.extract_store_info(soup, url, clinic_name)
     
     # Transform to the expected format
