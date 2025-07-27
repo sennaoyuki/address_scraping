@@ -323,6 +323,8 @@ def extract_clinic_info_legacy(soup, url, clinic_name=""):
     
     # フレイアクリニック
     elif 'frey-a' in domain:
+        print(f"[DEBUG] Processing Freya clinic - URL: {url}")
+        
         # 店舗名 - h1タグから取得し、不要な部分を削除
         h1_elem = soup.find('h1')
         if h1_elem:
@@ -331,9 +333,11 @@ def extract_clinic_info_legacy(soup, url, clinic_name=""):
             if '医療脱毛するなら' in name:
                 name = name.split('医療脱毛するなら')[-1].strip()
             clinic_info['name'] = name
+            print(f"[DEBUG] Freya name found: {clinic_info['name']}")
         
         # dl/dt/dd構造から情報抽出（フレイアクリニックの現在の構造）
         dl_elems = soup.find_all('dl')
+        print(f"[DEBUG] Found {len(dl_elems)} dl elements")
         for dl in dl_elems:
             dts = dl.find_all('dt')
             dds = dl.find_all('dd')
@@ -346,6 +350,7 @@ def extract_clinic_info_legacy(soup, url, clinic_name=""):
                     # 住所から余分な情報を削除
                     address = value.split('当院には')[0].strip()
                     clinic_info['address'] = address
+                    print(f"[DEBUG] Freya address found: {clinic_info['address']}")
                 elif '最寄り駅' in header or 'アクセス' in header:
                     # アクセス情報から最も近い駅を抽出
                     access_text = value.split('出口まで')[0].strip()
@@ -353,6 +358,7 @@ def extract_clinic_info_legacy(soup, url, clinic_name=""):
                     access_lines = access_text.split('\n')
                     if access_lines:
                         clinic_info['access'] = access_lines[0].strip()
+                        print(f"[DEBUG] Freya access found: {clinic_info['access']}")
         
         # もしdl構造で見つからない場合は、テーブルから情報抽出（旧構造対応）
         if not clinic_info['address']:
