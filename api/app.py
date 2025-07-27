@@ -8,14 +8,14 @@ import re
 import csv
 from datetime import datetime
 import io
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from universal_scraper import UniversalStoreScraper
+try:
+    from universal_scraper import UniversalStoreScraper
+    universal_scraper = UniversalStoreScraper()
+except ImportError:
+    print("Warning: universal_scraper not found, using legacy extraction only")
+    universal_scraper = None
 
 app = Flask(__name__)
-
-# Initialize universal scraper
-universal_scraper = UniversalStoreScraper()
 
 @app.route('/')
 def index():
@@ -244,31 +244,39 @@ def extract_clinic_info(soup, url, clinic_name=""):
     from urllib.parse import urlparse
     domain = urlparse(url).netloc
     
+    # デバッグログ
+    print(f"[DEBUG] extract_clinic_info - URL: {url}, Domain: {domain}")
+    
     # 特定のサイトの場合はレガシー抽出を使用
     legacy_domains = ['dioclinic', 'eminal-clinic', 'frey-a', 'seishin-biyou', 'rizeclinic', 's-b-c.net']
     
     for legacy_domain in legacy_domains:
         if legacy_domain in domain:
+            print(f"[DEBUG] Using legacy extraction for {legacy_domain}")
             return extract_clinic_info_legacy(soup, url, clinic_name)
     
-    # それ以外は汎用スクレイパーを使用
-    result = universal_scraper.extract_store_info(soup, url, clinic_name)
-    
-    # Transform to the expected format
-    clinic_info = {
-        'name': result.get('name', clinic_name),
-        'address': result.get('address', ''),
-        'access': result.get('access', ''),
-        'url': url
-    }
-    
-    # Add additional fields if available
-    if 'phone' in result and result['phone']:
-        clinic_info['phone'] = result['phone']
-    if 'hours' in result and result['hours']:
-        clinic_info['hours'] = result['hours']
-    
-    return clinic_info
+    # それ以外は汎用スクレイパーを使用（利用可能な場合）
+    if universal_scraper:
+        result = universal_scraper.extract_store_info(soup, url, clinic_name)
+        
+        # Transform to the expected format
+        clinic_info = {
+            'name': result.get('name', clinic_name),
+            'address': result.get('address', ''),
+            'access': result.get('access', ''),
+            'url': url
+        }
+        
+        # Add additional fields if available
+        if 'phone' in result and result['phone']:
+            clinic_info['phone'] = result['phone']
+        if 'hours' in result and result['hours']:
+            clinic_info['hours'] = result['hours']
+        
+        return clinic_info
+    else:
+        # 汎用スクレイパーが利用できない場合は基本的な抽出
+        return extract_clinic_info_legacy(soup, url, clinic_name)
 
 def extract_clinic_info_legacy(soup, url, clinic_name=""):
     """Legacy extraction method (kept for reference)"""
